@@ -78,7 +78,7 @@ export default {
   ],
 
   axios: {
-    baseURL:'https://cleanheartserver-production.up.railway.app/api',
+    baseURL:'https://cleanheartserver-production.up.railway.app',
     credentials: true,
   },
 
