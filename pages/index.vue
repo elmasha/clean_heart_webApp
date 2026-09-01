@@ -463,6 +463,7 @@ export default {
     ...mapState({
       products: state => state.products,
       loading: state => state.loading,
+      authUser: state => state.authUser,
     }),
     ...mapGetters(['getCartCount']),
     filteredProducts() {
@@ -470,12 +471,30 @@ export default {
       return this.products.filter(p => p.category === this.activeFilter).slice(0, 8)
     },
     firebaseUid() {
-      return this.$store.state.authUser?.uid || null
+      return this.authUser?.uid || null
     }
   },
   async fetch({ store }) {
     await store.dispatch('fetchProducts')
     await store.dispatch('fetchCategories')
+  },
+  mounted() {
+    // Check if user is logged in and fetch cart
+    if (this.firebaseUid) {
+      console.log('IndexPage mounted - fetching cart for:', this.firebaseUid)
+      this.$store.dispatch('fetchCart', this.firebaseUid)
+    }
+  },
+  watch: {
+    firebaseUid: {
+      immediate: true,
+      handler(newUid, oldUid) {
+        if (newUid && newUid !== oldUid) {
+          console.log('IndexPage - firebaseUid changed, fetching cart:', newUid)
+          this.$store.dispatch('fetchCart', newUid)
+        }
+      }
+    }
   },
   methods: {
     scrollToProducts() {
@@ -487,18 +506,35 @@ export default {
         this.$router.push('/login?redirect=/')
         return
       }
+
       this.addingToCart = true
-      const result = await this.$store.dispatch('addToCart', {
-        firebaseUid: this.firebaseUid,
-        productId: 1,
-        qty: 1,
-        variant: `${this.selectedColor} / ${this.selectedSize}`
-      })
-      this.addingToCart = false
-      if (result.success) {
-        this.$nuxt.$emit('show-snackbar', { message: 'Added to cart!', color: 'black' })
-      } else {
-        this.$nuxt.$emit('show-snackbar', { message: result.error || 'Failed to add', color: 'error' })
+      try {
+        const result = await this.$store.dispatch('addToCart', {
+          firebaseUid: this.firebaseUid,
+          productId: 1,
+          qty: 1,
+          variant: `${this.selectedColor} / ${this.selectedSize}`
+        })
+
+        if (result.success) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: 'Added to cart!', 
+            color: 'black' 
+          })
+        } else {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: result.error || 'Failed to add to cart', 
+            color: 'error' 
+          })
+        }
+      } catch (error) {
+        console.error('Add to cart error:', error)
+        this.$nuxt.$emit('show-snackbar', { 
+          message: 'Something went wrong. Please try again.', 
+          color: 'error' 
+        })
+      } finally {
+        this.addingToCart = false
       }
     },
     async quickAdd(product) {
@@ -506,22 +542,46 @@ export default {
         this.$router.push('/login?redirect=/')
         return
       }
-      const result = await this.$store.dispatch('addToCart', {
-        firebaseUid: this.firebaseUid,
-        productId: product.id,
-        qty: 1,
-        variant: 'M'
-      })
-      if (result.success) {
-        this.$nuxt.$emit('show-snackbar', { message: `${product.name} added!`, color: 'black' })
+
+      try {
+        const result = await this.$store.dispatch('addToCart', {
+          firebaseUid: this.firebaseUid,
+          productId: product.id,
+          qty: 1,
+          variant: 'M' // Default variant
+        })
+
+        if (result.success) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: `${product.name} added to cart!`, 
+            color: 'black' 
+          })
+        } else {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: result.error || 'Failed to add to cart', 
+            color: 'error' 
+          })
+        }
+      } catch (error) {
+        console.error('Quick add error:', error)
+        this.$nuxt.$emit('show-snackbar', { 
+          message: 'Something went wrong. Please try again.', 
+          color: 'error' 
+        })
       }
     },
     subscribe() {
       if (!this.email) {
-        this.$nuxt.$emit('show-snackbar', { message: 'Please enter your email', color: 'error' })
+        this.$nuxt.$emit('show-snackbar', { 
+          message: 'Please enter your email', 
+          color: 'error' 
+        })
         return
       }
-      this.$nuxt.$emit('show-snackbar', { message: 'Welcome to the Clean Heart family!', color: '#E53935' })
+      this.$nuxt.$emit('show-snackbar', { 
+        message: 'Welcome to the Clean Heart family!', 
+        color: '#E53935' 
+      })
       this.email = ''
     }
   }

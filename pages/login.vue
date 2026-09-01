@@ -15,14 +15,28 @@
               CLEAN HEART
             </h1>
             <p style="font-size: 0.85rem; color: #666; margin-top: 8px;">
-              Sign in to your account
+              {{ isLogin ? 'Sign in to your account' : 'Create your account' }}
             </p>
           </div>
 
-          <!-- Login Card -->
+          <!-- Login/Register Card -->
           <div style="border: 1px solid #f0f0f0; padding: 32px; background: #fff;">
             <!-- Email/Password Form -->
             <div v-if="loginMethod === 'email'">
+              <!-- Full Name - Only for Registration -->
+              <v-text-field
+                v-if="!isLogin"
+                v-model="fullName"
+                label="Full Name"
+                outlined
+                dense
+                hide-details
+                class="mb-4"
+                style="border-radius: 0;"
+                prepend-inner-icon="mdi-account-outline"
+                required
+              />
+
               <v-text-field
                 v-model="email"
                 label="Email"
@@ -33,8 +47,9 @@
                 style="border-radius: 0;"
                 type="email"
                 prepend-inner-icon="mdi-email-outline"
-                @keyup.enter="loginWithEmail"
+                @keyup.enter="handleSubmit"
               />
+
               <v-text-field
                 v-model="password"
                 label="Password"
@@ -47,13 +62,45 @@
                 prepend-inner-icon="mdi-lock-outline"
                 :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
                 @click:append="showPassword = !showPassword"
-                @keyup.enter="loginWithEmail"
+                @keyup.enter="handleSubmit"
               />
-              <div class="d-flex justify-end mb-6">
+
+              <!-- Confirm Password - Only for Registration -->
+              <v-text-field
+                v-if="!isLogin"
+                v-model="confirmPassword"
+                label="Confirm Password"
+                outlined
+                dense
+                hide-details
+                class="mb-4"
+                style="border-radius: 0;"
+                :type="showPassword ? 'text' : 'password'"
+                prepend-inner-icon="mdi-lock-check-outline"
+                @keyup.enter="handleSubmit"
+              />
+
+              <!-- Forgot Password - Only for Login -->
+              <div v-if="isLogin" class="d-flex justify-end mb-6">
                 <nuxt-link to="/forgot-password" style="font-size: 0.75rem; color: #E53935; text-decoration: none;">
                   Forgot password?
                 </nuxt-link>
               </div>
+
+              <!-- Phone Number - Only for Registration -->
+              <v-text-field
+                v-if="!isLogin"
+                v-model="phone"
+                label="Phone Number (Optional)"
+                outlined
+                dense
+                hide-details
+                class="mb-4"
+                style="border-radius: 0;"
+                placeholder="+254 7XX XXX XXX"
+                prepend-inner-icon="mdi-phone-outline"
+              />
+
               <v-btn
                 block
                 color="black"
@@ -61,9 +108,9 @@
                 height="48"
                 style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
                 :loading="loading"
-                @click="loginWithEmail"
+                @click="handleSubmit"
               >
-                Sign In
+                {{ isLogin ? 'Sign In' : 'Create Account' }}
               </v-btn>
             </div>
 
@@ -115,7 +162,7 @@
                   :loading="loading"
                   @click="verifyOTP"
                 >
-                  Verify & Sign In
+                  Verify & {{ isLogin ? 'Sign In' : 'Register' }}
                 </v-btn>
                 <div class="text-center mt-3">
                   <v-btn text small color="#E53935" style="font-size: 0.7rem; text-transform: uppercase;" @click="resendOTP">
@@ -144,7 +191,7 @@
               @click="loginWithGoogle"
             >
               <v-icon left size="18" color="#E53935">mdi-google</v-icon>
-              Continue with Google
+              {{ isLogin ? 'Continue with Google' : 'Sign up with Google' }}
             </v-btn>
 
             <!-- Toggle Login Method -->
@@ -155,12 +202,14 @@
             </div>
           </div>
 
-          <!-- Sign Up Link -->
+          <!-- Toggle Login/Register -->
           <div class="text-center mt-6">
-            <span style="font-size: 0.85rem; color: #666;">Don't have an account? </span>
-            <nuxt-link to="/register" style="font-size: 0.85rem; color: #E53935; font-weight: 600; text-decoration: none;">
-              Create one
-            </nuxt-link>
+            <span style="font-size: 0.85rem; color: #666;">
+              {{ isLogin ? "Don't have an account?" : "Already have an account?" }}
+            </span>
+            <v-btn text small style="font-size: 0.85rem; color: #E53935; font-weight: 600; text-decoration: none; text-transform: none;" @click="toggleAuthMode">
+              {{ isLogin ? 'Create one' : 'Sign in' }}
+            </v-btn>
           </div>
         </v-col>
       </v-row>
@@ -176,11 +225,14 @@ export default {
   name: 'LoginPage',
   data() {
     return {
+      isLogin: true,
       loginMethod: 'email',
       email: '',
       password: '',
-      showPassword: false,
+      confirmPassword: '',
+      fullName: '',
       phone: '',
+      showPassword: false,
       otp: '',
       otpSent: false,
       loading: false,
@@ -196,12 +248,26 @@ export default {
       this.redirect = redirect
     }
 
+    // Check if we should show registration
+    const mode = this.$route.query.mode
+    if (mode === 'register') {
+      this.isLogin = false
+    }
+
     // If already logged in, redirect
     if (this.$store.getters.isAuthenticated) {
       this.$router.push(this.redirect)
     }
   },
   methods: {
+    async handleSubmit() {
+      if (this.isLogin) {
+        await this.loginWithEmail()
+      } else {
+        await this.registerWithEmail()
+      }
+    },
+
     async loginWithEmail() {
       if (!this.email || !this.password) {
         this.showSnackbar('Please enter email and password', 'error')
@@ -214,6 +280,51 @@ export default {
         await this.handleLoginSuccess(userCredential.user)
       } catch (error) {
         console.error('Login error:', error)
+        this.showSnackbar(this.getAuthErrorMessage(error.code), 'error')
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async registerWithEmail() {
+      if (!this.email || !this.password || !this.fullName) {
+        this.showSnackbar('Please fill in all required fields', 'error')
+        return
+      }
+
+      if (this.password !== this.confirmPassword) {
+        this.showSnackbar('Passwords do not match', 'error')
+        return
+      }
+
+      if (this.password.length < 6) {
+        this.showSnackbar('Password must be at least 6 characters', 'error')
+        return
+      }
+
+      this.loading = true
+      try {
+        // Create user with email and password
+        const userCredential = await this.$fire.auth.createUserWithEmailAndPassword(this.email, this.password)
+        const user = userCredential.user
+
+        // Update profile with display name
+        await user.updateProfile({
+          displayName: this.fullName
+        })
+
+        // Reload user to get updated profile
+        await user.reload()
+
+        // Sync user with database
+        await this.syncUserToDatabase(user)
+
+        this.showSnackbar('Account created successfully! Welcome to Clean Heart.', '#E53935')
+
+        // Redirect
+        this.$router.push(this.redirect)
+      } catch (error) {
+        console.error('Registration error:', error)
         this.showSnackbar(this.getAuthErrorMessage(error.code), 'error')
       } finally {
         this.loading = false
@@ -234,6 +345,59 @@ export default {
       }
     },
 
+    async syncUserToDatabase(user) {
+      try {
+        const userData = {
+          firebaseUid: user.uid,
+          email: user.email,
+          displayName: user.displayName || this.fullName,
+          phone: this.phone || user.phoneNumber || null,
+          photoURL: user.photoURL
+        }
+
+        const { data } = await this.$axios.post('/api/users/sync', userData)
+        if (data.success) {
+          console.log('User synced to database:', data.data)
+          return data.data
+        }
+        return null
+      } catch (error) {
+        console.error('Sync user error:', error)
+        return null
+      }
+    },
+
+    async handleLoginSuccess(user) {
+      try {
+        // Sync user with database
+        const dbUser = await this.syncUserToDatabase(user)
+
+        // Prepare user data for store
+        const userData = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || this.fullName,
+          photoURL: user.photoURL,
+          phoneNumber: user.phoneNumber || this.phone,
+          dbUser: dbUser // Store full user data from database
+        }
+
+        // Set user in store
+        await this.$store.dispatch('setAuthUser', userData)
+
+        // Fetch cart
+        await this.$store.dispatch('fetchCart', user.uid)
+
+        this.showSnackbar(`Welcome${user.displayName ? ', ' + user.displayName : ''}!`, '#E53935')
+
+        // Redirect
+        this.$router.push(this.redirect)
+      } catch (error) {
+        console.error('Login handler error:', error)
+        this.showSnackbar('Failed to complete login. Please try again.', 'error')
+      }
+    },
+
     async sendOTP() {
       if (!this.phone) {
         this.showSnackbar('Please enter phone number', 'error')
@@ -242,7 +406,6 @@ export default {
 
       this.loading = true
       try {
-        // Make sure recaptcha container exists
         if (!document.getElementById('recaptcha-container')) {
           const container = document.createElement('div')
           container.id = 'recaptcha-container'
@@ -251,9 +414,7 @@ export default {
 
         const appVerifier = new this.$fireModule.auth.RecaptchaVerifier('recaptcha-container', {
           size: 'invisible',
-          callback: () => {
-            // reCAPTCHA solved - allow sending OTP
-          }
+          callback: () => {}
         })
 
         const confirmationResult = await this.$fire.auth.signInWithPhoneNumber(this.phone, appVerifier)
@@ -263,7 +424,6 @@ export default {
       } catch (error) {
         console.error('OTP send error:', error)
         this.showSnackbar(error.message || 'Failed to send OTP. Please try again.', 'error')
-        // Reset reCAPTCHA if needed
         this.resetRecaptcha()
       } finally {
         this.loading = false
@@ -284,13 +444,22 @@ export default {
       this.loading = true
       try {
         const result = await this.confirmationResult.confirm(this.otp)
-        await this.handleLoginSuccess(result.user)
+        
+        // After phone verification, handle the user
+        // For registration, you might want to collect email separately
+        if (this.isLogin) {
+          await this.handleLoginSuccess(result.user)
+        } else {
+          // For registration via phone, you'd typically collect email first
+          // For now, we'll treat it as login
+          await this.handleLoginSuccess(result.user)
+        }
+        
         this.otp = ''
         this.otpSent = false
       } catch (error) {
         console.error('OTP verify error:', error)
         this.showSnackbar(error.message || 'Invalid OTP. Please try again.', 'error')
-        // Reset confirmation result on error
         this.confirmationResult = null
       } finally {
         this.loading = false
@@ -303,28 +472,6 @@ export default {
       await this.sendOTP()
     },
 
-    async handleLoginSuccess(user) {
-      // Get user data from your backend or use Firebase data
-      const userData = {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        phoneNumber: user.phoneNumber,
-      }
-
-      // Set user in store
-      await this.$store.dispatch('setAuthUser', userData)
-
-      // Fetch cart
-      await this.$store.dispatch('fetchCart', user.uid)
-
-      this.showSnackbar(`Welcome${user.displayName ? ', ' + user.displayName : ''}!`, '#E53935')
-
-      // Redirect
-      this.$router.push(this.redirect)
-    },
-
     toggleLoginMethod() {
       this.loginMethod = this.loginMethod === 'email' ? 'phone' : 'email'
       this.otpSent = false
@@ -333,8 +480,20 @@ export default {
       this.resetRecaptcha()
     },
 
+    toggleAuthMode() {
+      this.isLogin = !this.isLogin
+      this.resetForm()
+    },
+
+    resetForm() {
+      this.password = ''
+      this.confirmPassword = ''
+      this.otp = ''
+      this.otpSent = false
+      this.confirmationResult = null
+    },
+
     resetRecaptcha() {
-      // Clean up reCAPTCHA container
       const container = document.getElementById('recaptcha-container')
       if (container) {
         container.innerHTML = ''
@@ -347,32 +506,42 @@ export default {
 
     getAuthErrorMessage(code) {
       const messages = {
+        // Login errors
         'auth/invalid-email': 'Invalid email address',
         'auth/user-disabled': 'This account has been disabled',
         'auth/user-not-found': 'No account found with this email',
         'auth/wrong-password': 'Incorrect password',
         'auth/invalid-credential': 'Invalid email or password',
         'auth/too-many-requests': 'Too many attempts. Please try again later',
+        
+        // Registration errors
+        'auth/email-already-in-use': 'This email is already registered',
+        'auth/weak-password': 'Password is too weak. Use at least 6 characters',
+        'auth/operation-not-allowed': 'Email/password accounts are not enabled',
+        
+        // Social login errors
         'auth/popup-closed-by-user': 'Sign-in popup was closed',
         'auth/cancelled-popup-request': 'Sign-in was cancelled',
+        'auth/account-exists-with-different-credential': 'An account already exists with this email. Please sign in using a different method.',
+        
+        // Phone errors
         'auth/invalid-phone-number': 'Invalid phone number. Please use format: +254XXXXXXXXX',
         'auth/missing-phone-number': 'Please enter a phone number',
         'auth/invalid-verification-code': 'Invalid verification code',
         'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
-        'auth/account-exists-with-different-credential': 'An account already exists with this email. Please sign in using a different method.',
-        'auth/email-already-in-use': 'This email is already in use',
       }
       return messages[code] || 'Authentication failed. Please try again.'
     }
   },
   head() {
-    return { title: 'Sign In | Clean Heart' }
+    return { 
+      title: this.isLogin ? 'Sign In | Clean Heart' : 'Sign Up | Clean Heart'
+    }
   }
 }
 </script>
 
 <style scoped>
-/* Reset recaptcha container styles */
 #recaptcha-container {
   position: absolute;
   bottom: 0;

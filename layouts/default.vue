@@ -181,37 +181,73 @@
 
       <div v-else class="pa-4" style="height: calc(100% - 180px); overflow-y: auto;">
         <div
-          v-for="item in cartItems"
-          :key="`${item.product_id}-${item.variant}`"
+          v-for="(item, index) in cartItems"
+          :key="getCartItemKey(item, index)"
           class="d-flex align-start mb-4 pb-4"
           style="gap: 16px; border-bottom: 1px solid #f0f0f0;"
         >
+          <!-- Product Image -->
           <v-img
-            :src="item.image_url || '/placeholder-product.jpg'"
+            :src="getProductImage(item)"
             width="80"
             height="100"
             contain
-            style="background: #f5f5f5;"
+            style="background: #f5f5f5; flex-shrink: 0;"
           />
-          <div class="flex-grow-1">
-            <div style="font-weight: 600; font-size: 0.85rem;">{{ item.name }}</div>
-            <div class="grey--text text--darken-1" style="font-size: 0.75rem;">
-              {{ item.variant }}
+          
+          <div class="flex-grow-1" style="min-width: 0;">
+            <!-- Product Name -->
+            <div style="font-weight: 600; font-size: 0.85rem; color: #000; line-height: 1.2;">
+              {{ getProductName(item) }}
             </div>
+            
+            <!-- Variant Details -->
+            <div class="grey--text text--darken-1" style="font-size: 0.75rem; margin-top: 2px;">
+              {{ getVariantDisplay(item) }}
+            </div>
+            
+            <!-- Price -->
+            <div style="font-weight: 700; font-size: 0.9rem; color: #000; margin-top: 4px;">
+              ${{ formatPrice(getUnitPrice(item)) }}
+            </div>
+            
+            <!-- Quantity Controls -->
             <div class="d-flex align-center mt-2">
-              <v-btn icon x-small @click="updateQty(item, -1)">
+              <v-btn 
+                icon 
+                x-small 
+                @click="updateQty(item, -1)"
+                style="border: 1px solid #e0e0e0; border-radius: 0;"
+              >
                 <v-icon size="14">mdi-minus</v-icon>
               </v-btn>
-              <span class="mx-2" style="font-size: 0.8rem; font-weight: 600;">{{ item.qty }}</span>
-              <v-btn icon x-small @click="updateQty(item, 1)">
+              <span class="mx-3" style="font-size: 0.85rem; font-weight: 600; min-width: 24px; text-align: center;">
+                {{ getQuantity(item) }}
+              </span>
+              <v-btn 
+                icon 
+                x-small 
+                @click="updateQty(item, 1)"
+                style="border: 1px solid #e0e0e0; border-radius: 0;"
+              >
                 <v-icon size="14">mdi-plus</v-icon>
               </v-btn>
             </div>
           </div>
-          <div class="d-flex flex-column align-end">
-            <span style="font-weight: 700; font-size: 0.9rem;">${{ (item.price * item.qty).toFixed(2) }}</span>
-            <v-btn icon x-small class="mt-2" @click="removeItem(item)">
-              <v-icon size="14" color="grey">mdi-delete-outline</v-icon>
+          
+          <!-- Item Total & Remove -->
+          <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
+            <span style="font-weight: 700; font-size: 0.95rem; color: #000;">
+              ${{ formatPrice(getItemTotal(item)) }}
+            </span>
+            <v-btn 
+              icon 
+              x-small 
+              class="mt-2" 
+              @click="removeItem(item)"
+              style="color: #999;"
+            >
+              <v-icon size="16">mdi-close</v-icon>
             </v-btn>
           </div>
         </div>
@@ -223,7 +259,7 @@
       >
         <div class="d-flex justify-space-between mb-3">
           <span style="font-weight: 600; font-size: 0.9rem;">Subtotal</span>
-          <span style="font-weight: 700; font-size: 1rem;">${{ cartTotal.toFixed(2) }}</span>
+          <span style="font-weight: 700; font-size: 1rem;">${{ formatPrice(cartTotal) }}</span>
         </div>
         <div class="d-flex justify-space-between mb-4">
           <span style="font-size: 0.8rem; color: #666;">Shipping calculated at checkout</span>
@@ -398,6 +434,7 @@ export default {
   computed: {
     ...mapState({
       cartItems: state => state.cart,
+      authUser: state => state.authUser,
     }),
     ...mapGetters(['getCartCount', 'getCartTotal']),
     cartCount() {
@@ -407,7 +444,7 @@ export default {
       return this.getCartTotal
     },
     firebaseUid() {
-      return this.$store.state.authUser?.uid || null
+      return this.authUser?.uid || null
     }
   },
   watch: {
@@ -415,6 +452,7 @@ export default {
       immediate: true,
       handler(uid) {
         if (uid) {
+          console.log('Layout - Fetching cart for uid:', uid)
           this.$store.dispatch('fetchCart', uid)
         }
       }
@@ -429,6 +467,12 @@ export default {
     this.$nuxt.$on('show-snackbar', ({ message, color }) => {
       this.snackbar = { show: true, message, color }
     })
+    
+    // If user is already logged in, fetch cart
+    if (this.firebaseUid) {
+      console.log('Layout mounted - Fetching cart for:', this.firebaseUid)
+      this.$store.dispatch('fetchCart', this.firebaseUid)
+    }
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.checkScreenSize)
@@ -446,29 +490,139 @@ export default {
       }
     },
 
+    /**
+     * Format price to 2 decimal places
+     */
+    formatPrice(value) {
+      const num = parseFloat(value)
+      if (isNaN(num)) return '0.00'
+      return num.toFixed(2)
+    },
+
+    /**
+     * Get product name from cart item
+     */
+    getProductName(item) {
+      if (item.product?.name) return item.product.name
+      if (item.product_name) return item.product_name
+      if (item.name) return item.name
+      return 'Product'
+    },
+
+    /**
+     * Get product image from cart item
+     */
+    getProductImage(item) {
+      if (item.product?.image) return item.product.image
+      if (item.image_url) return item.image_url
+      if (item.variant?.imageUrl) return item.variant.imageUrl
+      return '/placeholder-product.jpg'
+    },
+
+    /**
+     * Get unit price from cart item
+     */
+    getUnitPrice(item) {
+      const price = item.variant?.unitPrice || item.price || item.unit_price || 0
+      return parseFloat(price) || 0
+    },
+
+    /**
+     * Get quantity from cart item
+     */
+    getQuantity(item) {
+      return parseInt(item.quantity || item.qty || 0) || 0
+    },
+
+    /**
+     * Get item total
+     */
+    getItemTotal(item) {
+      return this.getUnitPrice(item) * this.getQuantity(item)
+    },
+
+    /**
+     * Get variant display text
+     */
+    getVariantDisplay(item) {
+      // If item has a direct variant string
+      if (item.variant && typeof item.variant === 'string') {
+        return item.variant
+      }
+      
+      // If item has variant object
+      if (item.variant) {
+        const parts = []
+        if (item.variant.color) parts.push(item.variant.color)
+        if (item.variant.size) parts.push(item.variant.size)
+        if (parts.length > 0) return parts.join(' / ')
+      }
+      
+      // If item has separate fields
+      if (item.color && item.size) {
+        return `${item.color} / ${item.size}`
+      }
+      if (item.color) return item.color
+      if (item.size) return `Size ${item.size}`
+      if (item.variant_name) return item.variant_name
+      
+      return 'Standard'
+    },
+
+    /**
+     * Generate unique key for cart items
+     */
+    getCartItemKey(item, index) {
+      if (item.cartItemId) return `cart-${item.cartItemId}`
+      if (item.variantId) return `cart-${item.variantId}`
+      if (item.variant?.id) return `cart-${item.variant.id}`
+      
+      const productId = item.product?.id || item.product_id || 'unknown'
+      const variant = item.variant?.size || item.size || item.variant?.color || item.color || 'default'
+      return `cart-${productId}-${variant}`
+    },
+
     async updateQty(item, delta) {
-      const newQty = item.qty + delta
+      const currentQty = this.getQuantity(item)
+      const newQty = currentQty + delta
+      
       if (newQty < 1) {
         await this.removeItem(item)
         return
       }
+      
+      // Use variantId if available
+      const variantId = item.variantId || item.variant?.id || item.variant_id
+      
+      if (!variantId) {
+        this.snackbar = { show: true, message: 'Cannot update item', color: 'error' }
+        return
+      }
+      
       const result = await this.$store.dispatch('updateCartQty', {
         firebaseUid: this.firebaseUid,
-        productId: item.product_id,
-        variant: item.variant,
+        variantId: variantId,
         qty: newQty
       })
+      
       if (!result.success) {
         this.snackbar = { show: true, message: 'Failed to update quantity', color: 'error' }
       }
     },
 
     async removeItem(item) {
+      const variantId = item.variantId || item.variant?.id || item.variant_id
+      
+      if (!variantId) {
+        this.snackbar = { show: true, message: 'Cannot remove item', color: 'error' }
+        return
+      }
+      
       const result = await this.$store.dispatch('removeFromCart', {
         firebaseUid: this.firebaseUid,
-        productId: item.product_id,
-        variant: item.variant
+        variantId: variantId
       })
+      
       if (result.success) {
         this.snackbar = { show: true, message: 'Item removed from cart', color: 'black' }
       }
