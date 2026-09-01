@@ -68,9 +68,17 @@
               <h1 style="font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 900; color: #000; margin-bottom: 16px;">
                 {{ product.name }}
               </h1>
-              <div style="font-size: 1.5rem; font-weight: 700; color: #000; margin-bottom: 24px;">
-                ${{ parseFloat(product.price || product.base_price).toFixed(2) }}
+              
+              <!-- ✅ Price with Ksh -->
+              <div style="font-size: 1.5rem; font-weight: 700; color: #E53935; margin-bottom: 24px;">
+                Ksh {{ parseFloat(product.price || product.base_price).toFixed(2) }}
               </div>
+              
+              <!-- ✅ Compare price if available -->
+              <div v-if="product.compare_price" style="font-size: 1rem; color: #999; text-decoration: line-through; margin-top: -16px; margin-bottom: 24px;">
+                Ksh {{ parseFloat(product.compare_price).toFixed(2) }}
+              </div>
+
               <p style="font-size: 0.9rem; color: #666; line-height: 1.8; margin-bottom: 30px;">
                 {{ product.description || product.short_description || 'Premium streetwear piece from Clean Heart. Made with 100% heavyweight cotton for maximum comfort and durability. Features our signature red heart logo.' }}
               </p>
@@ -143,8 +151,10 @@
                   <v-icon left size="18">mdi-shopping-outline</v-icon>
                   Add to Cart
                 </v-btn>
-                <v-btn icon outlined height="52" width="52" style="border-radius: 0;">
-                  <v-icon size="20">mdi-heart-outline</v-icon>
+                <v-btn icon outlined height="52" width="52" style="border-radius: 0;" @click="toggleWishlist">
+                  <v-icon size="20" :color="inWishlist ? '#E53935' : '#000'">
+                    {{ inWishlist ? 'mdi-heart' : 'mdi-heart-outline' }}
+                  </v-icon>
                 </v-btn>
               </div>
 
@@ -153,7 +163,7 @@
                 <div class="d-flex flex-wrap" style="gap: 24px;">
                   <div class="d-flex align-center">
                     <v-icon size="18" color="#999" class="mr-2">mdi-truck-fast-outline</v-icon>
-                    <span style="font-size: 0.75rem; color: #666;">Free shipping over $75</span>
+                    <span style="font-size: 0.75rem; color: #666;">Free shipping over Ksh 7,500</span>
                   </div>
                   <div class="d-flex align-center">
                     <v-icon size="18" color="#999" class="mr-2">mdi-refresh</v-icon>
@@ -205,7 +215,9 @@
                     </v-img>
                   </div>
                   <div style="font-size: 0.8rem; font-weight: 600; color: #000; margin-bottom: 4px;">{{ p.name }}</div>
-                  <div style="font-size: 0.85rem; font-weight: 700; color: #000;">${{ parseFloat(p.price || p.base_price).toFixed(2) }}</div>
+                  <div style="font-size: 0.85rem; font-weight: 700; color: #E53935;">
+                    Ksh {{ parseFloat(p.price || p.base_price).toFixed(2) }}
+                  </div>
                 </div>
               </nuxt-link>
             </v-col>
@@ -236,14 +248,15 @@ export default {
         { name: 'Gray', hex: '#9e9e9e' },
       ],
       addingToCart: false,
+      inWishlist: false,
     }
   },
   computed: {
     ...mapState({
       products: state => state.products,
+      authUser: state => state.authUser,
     }),
     
-    // Get available sizes from product variants or use defaults
     availableSizes() {
       if (this.product && this.product.variants && this.product.variants.sizes) {
         return this.product.variants.sizes
@@ -251,10 +264,8 @@ export default {
       return this.defaultSizes
     },
     
-    // Get available colors from product variants or use defaults
     availableColors() {
       if (this.product && this.product.variants && this.product.variants.colors) {
-        // Map color names to objects with hex values
         return this.product.variants.colors.map(color => {
           const found = this.defaultColors.find(c => c.name.toLowerCase() === color.toLowerCase())
           return found || { name: color, hex: '#000000' }
@@ -263,13 +274,9 @@ export default {
       return this.defaultColors
     },
     
-    // Get product image (from variants or product)
     productImage() {
       if (this.product) {
-        // Check if product has image_url directly
         if (this.product.image_url) return this.product.image_url
-        
-        // Check if variants have images
         if (this.product.variants && this.product.variants.all) {
           const firstVariantWithImage = this.product.variants.all.find(v => v.imageUrl)
           if (firstVariantWithImage) return firstVariantWithImage.imageUrl
@@ -290,7 +297,7 @@ export default {
     },
     
     firebaseUid() {
-      return this.$store.state.authUser?.uid || null
+      return this.authUser?.uid || null
     }
   },
   
@@ -299,9 +306,11 @@ export default {
     
     // Try to find in cached products
     const cached = this.products.find(p => p.id === parseInt(productId))
-    if (cached) {
+    if (cached && cached.variants) {
       this.product = cached
       this.loading = false
+      this.initializeSelections()
+      this.checkWishlist()
       return
     }
 
@@ -311,6 +320,9 @@ export default {
       const result = await this.$store.dispatch('fetchProduct', productId)
       if (result) {
         this.product = result
+        this.initializeSelections()
+        this.checkWishlist()
+        console.log('Product loaded with variants:', result.variants)
       }
     } catch (error) {
       console.error('Error fetching product:', error)
@@ -328,18 +340,10 @@ export default {
   },
   
   watch: {
-    // Reset quantity when product changes
     product(newVal) {
       if (newVal) {
-        this.qty = 1
-        // Set default size to first available size
-        if (this.availableSizes.length > 0) {
-          this.selectedSize = this.availableSizes[0]
-        }
-        // Set default color to first available color
-        if (this.availableColors.length > 0) {
-          this.selectedColor = this.availableColors[0].name
-        }
+        this.initializeSelections()
+        this.checkWishlist()
       }
     }
   },
@@ -347,21 +351,147 @@ export default {
   methods: {
     ...mapActions(['addToCartAction']),
     
+    initializeSelections() {
+      if (!this.product) return
+      
+      this.qty = 1
+      
+      // Set default size to first available size
+      if (this.availableSizes.length > 0) {
+        this.selectedSize = this.availableSizes[0]
+      }
+      
+      // Set default color to first available color
+      if (this.availableColors.length > 0) {
+        this.selectedColor = this.availableColors[0].name
+      }
+      
+      console.log('Selections initialized:', {
+        size: this.selectedSize,
+        color: this.selectedColor,
+        availableSizes: this.availableSizes,
+        availableColors: this.availableColors
+      })
+    },
+    
+    // ✅ Helper to find variant ID from selected size and color
+    getSelectedVariantId() {
+      if (!this.product || !this.product.variants || !this.product.variants.all) {
+        return null
+      }
+      
+      // Find the variant matching selected color and size
+      const variant = this.product.variants.all.find(v => {
+        const colorMatch = v.color && v.color.toLowerCase() === this.selectedColor.toLowerCase()
+        const sizeMatch = v.size && v.size.toLowerCase() === this.selectedSize.toLowerCase()
+        return colorMatch && sizeMatch
+      })
+      
+      if (variant) {
+        console.log('Found variant for selection:', variant)
+        return variant.id
+      }
+      
+      // Fallback: return first variant
+      if (this.product.variants.all.length > 0) {
+        console.log('No exact match, using first variant:', this.product.variants.all[0])
+        return this.product.variants.all[0].id
+      }
+      
+      return null
+    },
+
+    // ✅ Check if product is in wishlist
+    async checkWishlist() {
+      if (!this.firebaseUid || !this.product) return
+      
+      try {
+        const { data } = await this.$axios.post('/api/wishlist/check', {
+          firebaseUid: this.firebaseUid,
+          productId: this.product.id
+        })
+        if (data.success) {
+          this.inWishlist = data.inWishlist
+        }
+      } catch (error) {
+        console.error('Check wishlist error:', error)
+      }
+    },
+
+    // ✅ Toggle wishlist
+    async toggleWishlist() {
+      if (!this.firebaseUid) {
+        this.$router.push(`/login?redirect=/product/${this.product.id}`)
+        return
+      }
+
+      try {
+        if (this.inWishlist) {
+          await this.$axios.delete(`/api/wishlist/${this.product.id}`, {
+            params: { firebaseUid: this.firebaseUid }
+          })
+          this.inWishlist = false
+          this.$nuxt.$emit('show-snackbar', {
+            message: 'Removed from wishlist',
+            color: '#E53935'
+          })
+        } else {
+          await this.$axios.post('/api/wishlist', {
+            firebaseUid: this.firebaseUid,
+            productId: this.product.id
+          })
+          this.inWishlist = true
+          this.$nuxt.$emit('show-snackbar', {
+            message: 'Added to wishlist',
+            color: '#E53935'
+          })
+        }
+      } catch (error) {
+        console.error('Toggle wishlist error:', error)
+        this.$nuxt.$emit('show-snackbar', {
+          message: 'Failed to update wishlist',
+          color: 'error'
+        })
+      }
+    },
+    
     async addToCart() {
       if (!this.firebaseUid) {
         this.$router.push(`/login?redirect=/product/${this.product.id}`)
         return
       }
       
+      // ✅ Find the variant ID
+      const variantId = this.getSelectedVariantId()
+      
+      if (!variantId) {
+        this.$nuxt.$emit('show-snackbar', {
+          message: 'No variant available for this product',
+          color: 'error'
+        })
+        return
+      }
+      
       this.addingToCart = true
       
       try {
+        const variantString = `${this.selectedColor} / ${this.selectedSize}`
+        console.log('Adding to cart:', {
+          variantString,
+          variantId,
+          qty: this.qty
+        })
+        
+        // ✅ Pass variantId directly to the action
         const result = await this.$store.dispatch('addToCart', {
           firebaseUid: this.firebaseUid,
           productId: this.product.id,
           qty: this.qty,
-          variant: `${this.selectedColor} / ${this.selectedSize}`
+          variant: variantString,
+          variantId: variantId // ✅ This is the key fix!
         })
+        
+        console.log('Add to cart result:', result)
         
         if (result.success) {
           this.$nuxt.$emit('show-snackbar', {
@@ -375,6 +505,7 @@ export default {
           })
         }
       } catch (error) {
+        console.error('Add to cart error:', error)
         this.$nuxt.$emit('show-snackbar', {
           message: 'Something went wrong. Please try again.',
           color: 'error'

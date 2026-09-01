@@ -1,4 +1,3 @@
-<!-- components/account/OrdersSection.vue -->
 <template>
   <v-card style="border-radius: 0; border: 1px solid #e0e0e0;">
     <v-card-title style="font-size: 1.1rem; font-weight: 700; border-bottom: 1px solid #f0f0f0; padding: 16px 24px;">
@@ -18,41 +17,31 @@
         </v-btn>
       </div>
 
-      <div v-else>
-        <v-data-table
-          :headers="headers"
-          :items="orders"
-          :items-per-page="10"
-          style="font-size: 0.85rem;"
-          class="elevation-0"
+      <v-list v-else>
+        <v-list-item
+          v-for="order in orders"
+          :key="order.id"
+          :to="`/myorders/${order.id}`"
+          class="px-4"
         >
-          <template #item.order_number="{ item }">
-            <nuxt-link :to="`/orders/${item.id}`" style="color: #E53935; text-decoration: none; font-weight: 600;">
-              {{ item.order_number }}
-            </nuxt-link>
-          </template>
-
-          <template #item.status="{ item }">
-            <v-chip :color="getStatusColor(item.status)" small dark>
-              {{ item.status }}
+          <v-list-item-avatar>
+            <v-icon color="#E53935">mdi-receipt</v-icon>
+          </v-list-item-avatar>
+          <v-list-item-content>
+            <v-list-item-title>
+              Order #{{ order.order_number || order.id }}
+            </v-list-item-title>
+            <v-list-item-subtitle>
+              {{ formatDate(order.created_at) }} · Ksh {{ formatPrice(order.total_amount) }}
+            </v-list-item-subtitle>
+          </v-list-item-content>
+          <v-list-item-action>
+            <v-chip :color="statusColor(order.status)" text-color="white" small style="border-radius: 0;">
+              {{ order.status }}
             </v-chip>
-          </template>
-
-          <template #item.total_amount="{ item }">
-            ${{ parseFloat(item.total_amount).toFixed(2) }}
-          </template>
-
-          <template #item.created_at="{ item }">
-            {{ formatDate(item.created_at) }}
-          </template>
-
-          <template #item.actions="{ item }">
-            <v-btn icon small color="#E53935" :to="`/orders/${item.id}`">
-              <v-icon size="18">mdi-eye</v-icon>
-            </v-btn>
-          </template>
-        </v-data-table>
-      </div>
+          </v-list-item-action>
+        </v-list-item>
+      </v-list>
     </v-card-text>
   </v-card>
 </template>
@@ -70,36 +59,32 @@ export default {
       default: false
     }
   },
-  data() {
-    return {
-      headers: [
-        { title: 'Order #', key: 'order_number' },
-        { title: 'Status', key: 'status' },
-        { title: 'Total', key: 'total_amount' },
-        { title: 'Date', key: 'created_at' },
-        { title: 'Actions', key: 'actions', sortable: false }
-      ]
-    }
-  },
   methods: {
-    getStatusColor(status) {
-      const colors = {
-        pending: 'orange',
-        processing: 'blue',
-        shipped: 'purple',
-        delivered: 'green',
-        cancelled: 'red',
-        refunded: 'grey'
-      }
-      return colors[status] || 'grey'
+    formatPrice(value) {
+      const num = parseFloat(value)
+      if (isNaN(num)) return '0.00'
+      return num.toFixed(2)
     },
-    formatDate(date) {
-      if (!date) return '-'
-      return new Date(date).toLocaleDateString('en-US', {
+    formatDate(dateString) {
+      if (!dateString) return 'N/A'
+      return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       })
+    },
+    statusColor(status) {
+      const colors = {
+        pending: '#F57C00',
+        processing: '#2196F3',
+        shipped: '#9C27B0',
+        delivered: '#2E7D32',
+        cancelled: '#C62828',
+        refunded: '#666',
+        paid: '#2E7D32',
+        completed: '#2E7D32'
+      }
+      return colors[status?.toLowerCase()] || '#666'
     }
   }
 }

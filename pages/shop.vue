@@ -55,8 +55,8 @@
                   track-color="#e0e0e0"
                 />
                 <div class="d-flex justify-space-between">
-                  <span style="font-size: 0.8rem; font-weight: 600;">${{ priceRange[0] }}</span>
-                  <span style="font-size: 0.8rem; font-weight: 600;">${{ priceRange[1] }}</span>
+                  <span style="font-size: 0.8rem; font-weight: 600;">Ksh {{ priceRange[0] }}</span>
+                  <span style="font-size: 0.8rem; font-weight: 600;">Ksh {{ priceRange[1] }}</span>
                 </div>
               </div>
 
@@ -202,16 +202,20 @@
                         </template>
                       </v-img>
                       <div class="product-overlay d-flex align-center justify-center" style="position: absolute; inset: 0; background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s;">
-                        <v-btn color="white" dark height="40" class="px-5" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; font-weight: 600;" @click.prevent="quickAdd(product)">
+                        <v-btn color="black" dark height="40" class="px-5" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; font-weight: 600;" @click.prevent="quickAdd(product)">
                           Quick Add
                         </v-btn>
                       </div>
                     </div>
 
                     <div>
-                      <div style="font-size: 0.75rem; font-weight: 600; color: #000; margin-bottom: 3px;">{{ product.name }}</div>
+                      <div style="font-size: 0.75rem; font-weight: 600; color: #000; margin-bottom: 3px;">
+                        {{ product.name }}
+                      </div>
                       <div class="d-flex align-center justify-space-between">
-                        <span style="font-size: 0.8rem; font-weight: 700; color: #000;">${{ parseFloat(product.price).toFixed(2) }}</span>
+                        <span style="font-size: 0.8rem; font-weight: 700; color: #E53935;">
+                          Ksh {{ parseFloat(product.price || product.base_price || 0).toFixed(2) }}
+                        </span>
                         <div v-if="product.colors" class="d-flex" style="gap: 3px;">
                           <div v-for="c in product.colors.split(',').slice(0,3)" :key="c" style="width: 10px; height: 10px; border-radius: 50%; border: 1px solid #ddd;" :style="`background: ${c.trim()};`" />
                         </div>
@@ -307,32 +311,90 @@ export default {
     }),
     maxPrice() {
       if (!this.products.length) return 200
-      return Math.ceil(Math.max(...this.products.map(p => parseFloat(p.price) || 0)))
+      return Math.ceil(Math.max(...this.products.map(p => parseFloat(p.price || p.base_price || 0))))
     },
     filteredProducts() {
       let result = [...this.products]
 
+      // ✅ Category filter
       if (this.selectedCategories.length > 0) {
-        result = result.filter(p => this.selectedCategories.includes(p.category))
+        result = result.filter(p => {
+          const productCategory = p.category || p.category_name || ''
+          return this.selectedCategories.some(cat => 
+            productCategory.toLowerCase() === cat.toLowerCase()
+          )
+        })
       }
 
+      // ✅ Size filter - check if product has any variant with the selected size
+      if (this.selectedSizes.length > 0) {
+        result = result.filter(p => {
+          // If product has variants directly
+          if (p.variants && p.variants.all && p.variants.all.length > 0) {
+            return p.variants.all.some(v => 
+              v.size && this.selectedSizes.some(s => s.toLowerCase() === v.size.toLowerCase())
+            )
+          }
+          // If product has a size field directly
+          if (p.size) {
+            return this.selectedSizes.some(s => s.toLowerCase() === p.size.toLowerCase())
+          }
+          // If product has variant data in the colors field (from the list API)
+          if (p.colors) {
+            // Size filtering can't be done with just colors, so we keep the product
+            return true
+          }
+          return false
+        })
+      }
+
+      // ✅ Color filter - check product colors or variants
+      if (this.selectedColors.length > 0) {
+        result = result.filter(p => {
+          // Check if product has a colors field (comma-separated from API)
+          if (p.colors) {
+            const productColors = p.colors.split(',').map(c => c.trim().toLowerCase())
+            return this.selectedColors.some(c => 
+              productColors.some(pc => pc === c.toLowerCase())
+            )
+          }
+          // Check variants for colors
+          if (p.variants && p.variants.all && p.variants.all.length > 0) {
+            return p.variants.all.some(v => 
+              v.color && this.selectedColors.some(c => c.toLowerCase() === v.color.toLowerCase())
+            )
+          }
+          // If product has a color field directly
+          if (p.color) {
+            return this.selectedColors.some(c => c.toLowerCase() === p.color.toLowerCase())
+          }
+          return false
+        })
+      }
+
+      // Price filter
       result = result.filter(p => {
-        const price = parseFloat(p.price) || 0
+        const price = parseFloat(p.price || p.base_price || 0)
         return price >= this.priceRange[0] && price <= this.priceRange[1]
       })
 
+      // Sort
       switch (this.sortBy) {
         case 'Price: Low to High':
-          result.sort((a, b) => parseFloat(a.price) - parseFloat(b.price))
+          result.sort((a, b) => parseFloat(a.price || a.base_price || 0) - parseFloat(b.price || b.base_price || 0))
           break
         case 'Price: High to Low':
-          result.sort((a, b) => parseFloat(b.price) - parseFloat(a.price))
+          result.sort((a, b) => parseFloat(b.price || b.base_price || 0) - parseFloat(a.price || a.base_price || 0))
           break
         case 'Newest':
           result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
           break
         case 'Best Selling':
           result.sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0))
+          break
+        default:
+          // Featured: put featured products first
+          result.sort((a, b) => (b.is_featured || 0) - (a.is_featured || 0))
           break
       }
 
@@ -355,7 +417,7 @@ export default {
       this.selectedSizes.forEach(s => chips.push(`Size: ${s}`))
       this.selectedColors.forEach(c => chips.push(`Color: ${c}`))
       if (this.priceRange[0] > 0 || this.priceRange[1] < this.maxPrice) {
-        chips.push(`$${this.priceRange[0]} - $${this.priceRange[1]}`)
+        chips.push(`Ksh ${this.priceRange[0]} - Ksh ${this.priceRange[1]}`)
       }
       return chips
     },
@@ -377,6 +439,14 @@ export default {
     if (category && this.categories.map(c => c.toLowerCase()).includes(category.toLowerCase())) {
       const matched = this.categories.find(c => c.toLowerCase() === category.toLowerCase())
       if (matched) this.selectedCategories = [matched]
+    }
+    
+    console.log('Shop page mounted - Products:', this.products.length)
+    console.log('Categories:', this.categories)
+    
+    // Log product data structure for debugging
+    if (this.products.length > 0) {
+      console.log('Sample product:', this.products[0])
     }
   },
   methods: {
@@ -424,19 +494,89 @@ export default {
       this.priceRange = [0, this.maxPrice]
       this.sortBy = 'Featured'
     },
+
+    // ✅ FIXED: Quick Add with full product fetch
     async quickAdd(product) {
       if (!this.firebaseUid) {
         this.$router.push('/login?redirect=/shop')
         return
       }
-      const result = await this.$store.dispatch('addToCart', {
-        firebaseUid: this.firebaseUid,
-        productId: product.id,
-        qty: 1,
-        variant: 'M'
-      })
-      if (result.success) {
-        this.$nuxt.$emit('show-snackbar', { message: `${product.name} added!`, color: 'black' })
+
+      try {
+        console.log('========== QUICK ADD ==========')
+        console.log('Product:', product)
+        
+        // ✅ Fetch the full product with variants
+        let fullProduct = this.products.find(p => p.id === product.id)
+        
+        // If product doesn't have variants in store, fetch it
+        if (!fullProduct || !fullProduct.variants) {
+          console.log('Fetching product details from API...')
+          const result = await this.$store.dispatch('fetchProduct', product.id)
+          if (result) {
+            fullProduct = result
+            console.log('Product fetched:', fullProduct)
+          }
+        }
+        
+        if (!fullProduct) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: 'Product not found', 
+            color: 'error' 
+          })
+          return
+        }
+        
+        console.log('Full product with variants:', fullProduct)
+        console.log('Variants:', fullProduct.variants)
+        
+        // ✅ Get the first available variant
+        let variantId = null
+        let variantDisplay = 'M' // Default fallback
+        
+        if (fullProduct.variants && fullProduct.variants.all && fullProduct.variants.all.length > 0) {
+          const firstVariant = fullProduct.variants.all[0]
+          variantId = firstVariant.id
+          variantDisplay = `${firstVariant.color || 'Black'} / ${firstVariant.size || 'M'}`
+          console.log('✅ Using first variant:', variantDisplay, 'ID:', variantId)
+        } else {
+          // Try to use the product's colors
+          if (fullProduct.colors) {
+            const colorList = fullProduct.colors.split(',')
+            const firstColor = colorList[0]?.trim() || 'Black'
+            variantDisplay = `${firstColor} / M`
+          }
+          console.log('⚠️ No variants found, using fallback:', variantDisplay)
+        }
+        
+        console.log('Adding to cart with variant:', variantDisplay, 'ID:', variantId)
+        
+        // ✅ Pass variantId directly if available
+        const result = await this.$store.dispatch('addToCart', {
+          firebaseUid: this.firebaseUid,
+          productId: product.id,
+          qty: 1,
+          variant: variantDisplay,
+          variantId: variantId // Pass variantId directly if available
+        })
+
+        if (result.success) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: `${product.name} added to cart!`, 
+            color: 'black' 
+          })
+        } else {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: result.error || 'Failed to add to cart', 
+            color: 'error' 
+          })
+        }
+      } catch (error) {
+        console.error('Quick add error:', error)
+        this.$nuxt.$emit('show-snackbar', { 
+          message: 'Something went wrong. Please try again.', 
+          color: 'error' 
+        })
       }
     }
   }

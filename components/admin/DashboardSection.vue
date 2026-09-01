@@ -37,11 +37,13 @@
       </v-card-title>
       <v-divider />
       <v-card-text>
+        <div v-if="loading" class="d-flex justify-center pa-4">
+          <v-progress-circular indeterminate color="#E53935" size="24" />
+        </div>
         <v-data-table
+          v-else
           :headers="stockHeaders"
           :items="lowStock"
-          :loading="loading"
-          loading-text="Loading..."
           hide-default-footer
           style="font-size: 0.8rem;"
         >
@@ -49,6 +51,61 @@
             <span style="color: #E53935; font-weight: 600;">{{ item.stock_quantity }}</span>
           </template>
         </v-data-table>
+        <div v-if="!loading && lowStock.length === 0" class="text-center pa-4" style="color: #999;">
+          All products have sufficient stock ✅
+        </div>
+      </v-card-text>
+    </v-card>
+
+    <!-- Delivery Settings -->
+    <v-card class="mt-4" style="border-radius: 0;">
+      <v-card-title style="font-size: 1rem; font-weight: 600;">
+        <v-icon left size="20" color="#E53935">mdi-truck-delivery</v-icon>
+        Delivery Settings
+      </v-card-title>
+      <v-divider />
+      <v-card-text>
+        <v-row>
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model="deliverySettings.free_delivery_threshold"
+              label="Free Delivery Threshold (Ksh)"
+              outlined
+              dense
+              hide-details
+              type="number"
+              style="border-radius: 0;"
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model="deliverySettings.delivery_fee"
+              label="Delivery Fee (Ksh)"
+              outlined
+              dense
+              hide-details
+              type="number"
+              style="border-radius: 0;"
+            />
+          </v-col>
+          <v-col cols="12" md="4" class="d-flex align-center">
+            <v-switch
+              v-model="deliverySettings.is_active"
+              label="Enable Delivery"
+              color="#E53935"
+              hide-details
+            />
+          </v-col>
+        </v-row>
+        <v-btn
+          color="black"
+          dark
+          style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem;"
+          :loading="savingDelivery"
+          @click="saveDeliverySettings"
+        >
+          Save Delivery Settings
+        </v-btn>
       </v-card-text>
     </v-card>
 
@@ -60,11 +117,13 @@
       </v-card-title>
       <v-divider />
       <v-card-text>
+        <div v-if="loading" class="d-flex justify-center pa-4">
+          <v-progress-circular indeterminate color="#E53935" size="24" />
+        </div>
         <v-data-table
+          v-else
           :headers="orderHeaders"
           :items="recentOrders"
-          :loading="loading"
-          loading-text="Loading..."
           hide-default-footer
           style="font-size: 0.8rem;"
         >
@@ -74,9 +133,12 @@
             </v-chip>
           </template>
           <template #item.total_amount="{ item }">
-            ${{ parseFloat(item.total_amount).toFixed(2) }}
+            Ksh {{ parseFloat(item.total_amount).toFixed(2) }}
           </template>
         </v-data-table>
+        <div v-if="!loading && recentOrders.length === 0" class="text-center pa-4" style="color: #999;">
+          No orders yet
+        </div>
       </v-card-text>
     </v-card>
   </div>
@@ -88,14 +150,20 @@ export default {
   data() {
     return {
       loading: false,
+      savingDelivery: false,
       stats: [
         { label: 'Today\'s Orders', value: 0, change: 0 },
-        { label: 'Today\'s Revenue', value: '$0', change: 0 },
+        { label: 'Today\'s Revenue', value: 'Ksh 0', change: 0 },
         { label: 'Total Products', value: 0, change: 0 },
         { label: 'Total Customers', value: 0, change: 0 },
       ],
       lowStock: [],
       recentOrders: [],
+      deliverySettings: {
+        free_delivery_threshold: 7500,
+        delivery_fee: 500,
+        is_active: true
+      },
       stockHeaders: [
         { title: 'Product', key: 'name' },
         { title: 'SKU', key: 'sku' },
@@ -122,23 +190,45 @@ export default {
         if (data.success) {
           const d = data.data
           this.stats = [
-            { label: 'Today\'s Orders', value: d.today.orders, change: 0 },
-            { label: 'Today\'s Revenue', value: `$${parseFloat(d.today.revenue).toFixed(2)}`, change: 0 },
-            { label: 'Total Products', value: d.totals.products, change: 0 },
-            { label: 'Total Customers', value: d.totals.users, change: 0 },
+            { label: 'Today\'s Orders', value: d.today?.orders || 0, change: 0 },
+            { label: 'Today\'s Revenue', value: `Ksh ${parseFloat(d.today?.revenue || 0).toFixed(2)}`, change: 0 },
+            { label: 'Total Products', value: d.totals?.products || 0, change: 0 },
+            { label: 'Total Customers', value: d.totals?.users || 0, change: 0 },
           ]
           this.lowStock = d.lowStock || []
           this.recentOrders = d.recentOrders || []
+          
+          if (d.deliverySettings) {
+            this.deliverySettings = d.deliverySettings
+          }
         }
       } catch (error) {
         console.error('Error fetching dashboard:', error)
+        this.$nuxt.$emit('show-snackbar', { message: 'Failed to load dashboard data', color: 'error' })
       } finally {
         this.loading = false
       }
     },
+    
     refreshData() {
       this.fetchDashboardData()
     },
+    
+    async saveDeliverySettings() {
+      this.savingDelivery = true
+      try {
+        const { data } = await this.$axios.put('/api/admin/delivery-settings', this.deliverySettings)
+        if (data.success) {
+          this.$nuxt.$emit('show-snackbar', { message: 'Delivery settings updated!', color: '#E53935' })
+        }
+      } catch (error) {
+        console.error('Error saving delivery settings:', error)
+        this.$nuxt.$emit('show-snackbar', { message: 'Failed to save settings', color: 'error' })
+      } finally {
+        this.savingDelivery = false
+      }
+    },
+    
     getStatusColor(status) {
       const colors = {
         pending: 'orange',

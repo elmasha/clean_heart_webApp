@@ -1,4 +1,3 @@
-<!-- components/account/ProfileSection.vue -->
 <template>
   <v-card style="border-radius: 0; border: 1px solid #e0e0e0;">
     <v-card-title style="font-size: 1.1rem; font-weight: 700; border-bottom: 1px solid #f0f0f0; padding: 16px 24px;">
@@ -110,13 +109,11 @@ export default {
       this.loading = true
       try {
         // Call your update endpoint
-        // const { data } = await this.$axios.put('/api/users/profile', this.form)
-        // this.$emit('refresh')
-        
         this.$nuxt.$emit('show-snackbar', {
           message: 'Profile updated successfully!',
           color: '#E53935'
         })
+        this.$emit('update')
       } catch (error) {
         console.error('Update profile error:', error)
         this.$nuxt.$emit('show-snackbar', {

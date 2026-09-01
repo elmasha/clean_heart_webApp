@@ -35,59 +35,11 @@
           </v-btn>
         </div>
 
-        <!-- Top 3 Featured -->
-        <div v-if="bestSellers.length >= 3" class="mb-12">
-          <div class="text-center mb-8">
-            <span style="font-size: 0.75rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #E53935;">Top 3</span>
-          </div>
+        <!-- Products Grid -->
+        <div v-else>
           <v-row>
             <v-col
-              v-for="(product, index) in bestSellers.slice(0, 3)"
-              :key="product.id"
-              cols="12"
-              md="4"
-            >
-              <nuxt-link :to="`/product/${product.id}`" style="text-decoration: none;">
-                <div style="position: relative; background: #f5f5f5; aspect-ratio: 3/4; overflow: hidden;">
-                  <div
-                    class="d-flex align-center justify-center"
-                    style="position: absolute; top: 16px; left: 16px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; background: #000; color: white; font-size: 1rem; font-weight: 900;"
-                  >
-                    {{ index + 1 }}
-                  </div>
-                  <v-img
-                    :src="product.image_url || product.image || '/placeholder-product.jpg'"
-                    aspect-ratio="3/4"
-                    contain
-                    style="width: 100%; height: 100%;"
-                  >
-                    <template #placeholder>
-                      <div class="d-flex align-center justify-center fill-height">
-                        <v-icon size="64" color="grey lighten-1">mdi-tshirt-crew-outline</v-icon>
-                      </div>
-                    </template>
-                  </v-img>
-                </div>
-                <div class="pa-4 text-center" style="background: #fff; border: 1px solid #f0f0f0;">
-                  <div style="font-size: 0.85rem; font-weight: 600; color: #000; margin-bottom: 4px;">{{ product.name }}</div>
-                  <div style="font-size: 1rem; font-weight: 700; color: #E53935;">${{ parseFloat(product.price).toFixed(2) }}</div>
-                  <div v-if="product.sold_count" style="font-size: 0.7rem; color: #999; margin-top: 4px;">
-                    {{ product.sold_count }} sold
-                  </div>
-                </div>
-              </nuxt-link>
-            </v-col>
-          </v-row>
-        </div>
-
-        <!-- All Best Sellers Grid -->
-        <div v-if="bestSellers.length > 3">
-          <div class="text-center mb-8">
-            <span style="font-size: 0.75rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #666;">More Favorites</span>
-          </div>
-          <v-row>
-            <v-col
-              v-for="product in bestSellers.slice(3)"
+              v-for="product in bestSellers"
               :key="product.id"
               cols="6"
               md="3"
@@ -116,17 +68,23 @@
                       </template>
                     </v-img>
                     <div class="product-overlay d-flex align-center justify-center" style="position: absolute; inset: 0; background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s;">
-                      <v-btn color="white" dark height="40" class="px-5" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; font-weight: 600;" @click.prevent="quickAdd(product)">
+                      <v-btn color="black" dark height="40" class="px-5" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; font-weight: 600;" @click.prevent="quickAdd(product)">
                         Quick Add
                       </v-btn>
                     </div>
                   </div>
 
                   <div>
-                    <div style="font-size: 0.75rem; font-weight: 600; color: #000; margin-bottom: 3px;">{{ product.name }}</div>
+                    <div style="font-size: 0.75rem; font-weight: 600; color: #000; margin-bottom: 3px;">
+                      {{ product.name }}
+                    </div>
                     <div class="d-flex align-center justify-space-between">
-                      <span style="font-size: 0.8rem; font-weight: 700; color: #000;">${{ parseFloat(product.price).toFixed(2) }}</span>
-                      <span v-if="product.sold_count" style="font-size: 0.65rem; color: #999;">{{ product.sold_count }} sold</span>
+                      <span style="font-size: 0.8rem; font-weight: 700; color: #E53935;">
+                        Ksh {{ parseFloat(product.price || product.base_price || 0).toFixed(2) }}
+                      </span>
+                      <span v-if="product.sold_count" style="font-size: 0.65rem; color: #999;">
+                        {{ product.sold_count }} sold
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -191,10 +149,34 @@ export default {
   computed: {
     ...mapState({
       loading: state => state.loading,
+      products: state => state.products,
     }),
     ...mapGetters(['getBestSellers']),
     bestSellers() {
-      return this.getBestSellers
+      // ✅ First try getter
+      const fromGetter = this.getBestSellers
+      if (fromGetter && fromGetter.length > 0) {
+        console.log('Best sellers from getter:', fromGetter.length)
+        return fromGetter
+      }
+      
+      // ✅ Fallback: Manual filter from products
+      console.log('Getter returned empty, falling back to manual filter')
+      const filtered = this.products.filter(p => {
+        return p.is_best_seller === true || 
+               p.is_best_seller === 1 || 
+               p.is_bestseller === true || 
+               p.is_bestseller === 1
+      })
+      
+      // Sort by sold_count
+      return filtered
+        .sort((a, b) => {
+          const aSold = a.sold_count || 0
+          const bSold = b.sold_count || 0
+          return bSold - aSold
+        })
+        .slice(0, 8)
     },
     firebaseUid() {
       return this.$store.state.authUser?.uid || null
@@ -203,21 +185,70 @@ export default {
   async fetch({ store }) {
     await store.dispatch('fetchProducts')
   },
+  mounted() {
+    console.log('All products count:', this.products.length)
+    console.log('Best sellers found:', this.bestSellers.length)
+  },
   methods: {
     async quickAdd(product) {
       if (!this.firebaseUid) {
         this.$router.push('/login?redirect=/best-sellers')
         return
       }
-      const result = await this.$store.dispatch('addToCart', {
-        firebaseUid: this.firebaseUid,
-        productId: product.id,
-        qty: 1,
-        variant: 'M'
-      })
-      if (result.success) {
-        this.$nuxt.$emit('show-snackbar', { message: `${product.name} added!`, color: 'black' })
+      
+      try {
+        // ✅ Get the full product with variants
+        const result = await this.$store.dispatch('fetchProduct', product.id)
+        const fullProduct = result || product
+        
+        let variantId = null
+        let variantDisplay = 'Standard'
+        
+        if (fullProduct.variants && fullProduct.variants.all && fullProduct.variants.all.length > 0) {
+          const firstVariant = fullProduct.variants.all[0]
+          variantId = firstVariant.id
+          variantDisplay = `${firstVariant.color || ''} / ${firstVariant.size || ''}`.trim() || 'Standard'
+        }
+
+        if (!variantId) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: 'No variant available', 
+            color: 'error' 
+          })
+          return
+        }
+
+        const cartResult = await this.$store.dispatch('addToCart', {
+          firebaseUid: this.firebaseUid,
+          productId: product.id,
+          qty: 1,
+          variant: variantDisplay,
+          variantId: variantId
+        })
+        
+        if (cartResult.success) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: `${product.name} added to cart!`, 
+            color: 'black' 
+          })
+        } else {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: cartResult.error || 'Failed to add to cart', 
+            color: 'error' 
+          })
+        }
+      } catch (error) {
+        console.error('Quick add error:', error)
+        this.$nuxt.$emit('show-snackbar', { 
+          message: 'Something went wrong', 
+          color: 'error' 
+        })
       }
+    }
+  },
+  head() {
+    return { 
+      title: 'Best Sellers | Clean Heart'
     }
   }
 }

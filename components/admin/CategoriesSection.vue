@@ -1,4 +1,3 @@
-<!-- components/admin/CategoriesSection.vue -->
 <template>
   <div>
     <div class="d-flex justify-space-between align-center mb-6 flex-wrap" style="gap: 12px;">
@@ -11,15 +10,27 @@
 
     <v-card style="border-radius: 0;">
       <v-card-text>
+        <div v-if="loading" class="d-flex justify-center pa-8">
+          <v-progress-circular indeterminate color="#E53935" size="40" />
+        </div>
+        <div v-else-if="categories.length === 0" class="text-center pa-8" style="color: #999;">
+          <v-icon size="48" color="grey lighten-1">mdi-view-list</v-icon>
+          <p class="mt-4">No categories found. Click "Add Category" to create one.</p>
+        </div>
         <v-data-table
+          v-else
           :headers="headers"
           :items="categories"
-          :loading="loading"
-          loading-text="Loading categories..."
           style="font-size: 0.8rem;"
         >
           <template #item.product_count="{ item }">
             <v-chip small>{{ item.product_count || 0 }}</v-chip>
+          </template>
+
+          <template #item.is_active="{ item }">
+            <v-chip :color="item.is_active ? 'green' : 'red'" small dark>
+              {{ item.is_active ? 'Active' : 'Inactive' }}
+            </v-chip>
           </template>
 
           <template #item.actions="{ item }">
@@ -68,6 +79,36 @@
               hint="Auto-generated from name"
               persistent-hint
             />
+
+            <v-textarea
+              v-model="form.description"
+              label="Description"
+              outlined
+              dense
+              hide-details
+              class="mt-4"
+              rows="2"
+              style="border-radius: 0;"
+            />
+
+            <v-text-field
+              v-model="form.image_url"
+              label="Image URL"
+              outlined
+              dense
+              hide-details
+              class="mt-4"
+              style="border-radius: 0;"
+              placeholder="https://example.com/category.jpg"
+            />
+
+            <v-switch
+              v-model="form.is_active"
+              label="Active"
+              color="#E53935"
+              hide-details
+              class="mt-4"
+            />
           </v-form>
         </v-card-text>
 
@@ -98,12 +139,16 @@ export default {
       form: {
         name: '',
         slug: '',
+        description: '',
+        image_url: '',
+        is_active: true
       },
       headers: [
         { title: 'ID', key: 'id' },
         { title: 'Name', key: 'name' },
         { title: 'Slug', key: 'slug' },
         { title: 'Products', key: 'product_count' },
+        { title: 'Status', key: 'is_active' },
         { title: 'Actions', key: 'actions', sortable: false },
       ]
     }
@@ -124,10 +169,14 @@ export default {
       try {
         const { data } = await this.$axios.get('/api/admin/categories')
         if (data.success) {
-          this.categories = data.data
+          this.categories = data.data || []
+        } else {
+          this.categories = []
         }
       } catch (error) {
         console.error('Error fetching categories:', error)
+        this.categories = []
+        this.$nuxt.$emit('show-snackbar', { message: 'Failed to load categories', color: 'error' })
       } finally {
         this.loading = false
       }
@@ -135,7 +184,11 @@ export default {
 
     openCategoryDialog(category = null) {
       this.editingCategory = category
-      this.form = category ? { ...category } : { name: '', slug: '' }
+      if (category) {
+        this.form = { ...category }
+      } else {
+        this.form = { name: '', slug: '', description: '', image_url: '', is_active: true }
+      }
       this.dialog = true
     },
 

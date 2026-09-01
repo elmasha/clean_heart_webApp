@@ -1,4 +1,3 @@
-<!-- components/admin/VariantsSection.vue -->
 <template>
   <div>
     <div class="d-flex justify-space-between align-center mb-6 flex-wrap" style="gap: 12px;">
@@ -25,11 +24,22 @@
 
     <v-card style="border-radius: 0;">
       <v-card-text>
+        <div v-if="loading" class="d-flex justify-center pa-8">
+          <v-progress-circular indeterminate color="#E53935" size="40" />
+        </div>
+        <div v-else-if="!selectedProduct" class="text-center pa-8" style="color: #999;">
+          <v-icon size="48" color="grey lighten-1">mdi-palette</v-icon>
+          <p class="mt-2">Select a product to manage its variants</p>
+        </div>
+        <div v-else-if="variants.length === 0" class="text-center pa-8" style="color: #999;">
+          <v-icon size="48" color="grey lighten-1">mdi-palette</v-icon>
+          <p class="mt-2">No variants found for this product.</p>
+          <p style="font-size: 0.8rem;">Click "Add Variant" to create one.</p>
+        </div>
         <v-data-table
+          v-else
           :headers="headers"
           :items="variants"
-          :loading="loading"
-          loading-text="Loading variants..."
           style="font-size: 0.8rem;"
         >
           <template #item.image_url="{ item }">
@@ -43,7 +53,7 @@
           </template>
 
           <template #item.price_override="{ item }">
-            ${{ parseFloat(item.price_override || item.base_price || 0).toFixed(2) }}
+            Ksh {{ parseFloat(item.price_override || 0).toFixed(2) }}
           </template>
 
           <template #item.is_active="{ item }">
@@ -67,11 +77,6 @@
             </v-btn>
           </template>
         </v-data-table>
-
-        <div v-if="!selectedProduct" class="text-center pa-8" style="color: #999;">
-          <v-icon size="48" color="grey lighten-1">mdi-palette</v-icon>
-          <p class="mt-2">Select a product to manage its variants</p>
-        </div>
       </v-card-text>
     </v-card>
 
@@ -147,13 +152,12 @@
               <v-col cols="6">
                 <v-text-field
                   v-model="form.price_override"
-                  label="Price Override"
+                  label="Price Override (Ksh)"
                   outlined
                   dense
                   hide-details
                   type="number"
                   step="0.01"
-                  prefix="$"
                   style="border-radius: 0;"
                   hint="Leave empty to use product base price"
                   persistent-hint
@@ -266,10 +270,11 @@ export default {
       try {
         const { data } = await this.$axios.get('/api/admin/products', { params: { limit: 100 } })
         if (data.success) {
-          this.products = data.data
+          this.products = data.data || []
         }
       } catch (error) {
         console.error('Error fetching products:', error)
+        this.products = []
       }
     },
 
@@ -283,10 +288,11 @@ export default {
       try {
         const { data } = await this.$axios.get(`/api/admin/products/${this.selectedProduct}/variants`)
         if (data.success) {
-          this.variants = data.data
+          this.variants = data.data || []
         }
       } catch (error) {
         console.error('Error fetching variants:', error)
+        this.variants = []
       } finally {
         this.loading = false
       }

@@ -1,4 +1,3 @@
-<!-- components/admin/ReportsSection.vue -->
 <template>
   <div>
     <div class="d-flex justify-space-between align-center mb-6 flex-wrap" style="gap: 12px;">
@@ -39,11 +38,16 @@
           </v-card-title>
           <v-divider />
           <v-card-text>
+            <div v-if="loading" class="d-flex justify-center pa-4">
+              <v-progress-circular indeterminate color="#E53935" size="24" />
+            </div>
+            <div v-else-if="salesReport.length === 0" class="text-center pa-4" style="color: #999;">
+              No sales data available for the selected period.
+            </div>
             <v-data-table
+              v-else
               :headers="salesHeaders"
               :items="salesReport"
-              :loading="loading"
-              loading-text="Loading..."
               :items-per-page="10"
               style="font-size: 0.8rem;"
             >
@@ -51,10 +55,10 @@
                 {{ new Date(item.date).toLocaleDateString() }}
               </template>
               <template #item.gross_revenue="{ item }">
-                ${{ parseFloat(item.gross_revenue || 0).toFixed(2) }}
+                Ksh {{ parseFloat(item.gross_revenue || 0).toFixed(2) }}
               </template>
               <template #item.net_revenue="{ item }">
-                ${{ parseFloat(item.net_revenue || 0).toFixed(2) }}
+                Ksh {{ parseFloat(item.net_revenue || 0).toFixed(2) }}
               </template>
             </v-data-table>
           </v-card-text>
@@ -70,16 +74,21 @@
           </v-card-title>
           <v-divider />
           <v-card-text>
+            <div v-if="loading" class="d-flex justify-center pa-4">
+              <v-progress-circular indeterminate color="#E53935" size="24" />
+            </div>
+            <div v-else-if="topProducts.length === 0" class="text-center pa-4" style="color: #999;">
+              No product sales data available.
+            </div>
             <v-data-table
+              v-else
               :headers="topProductsHeaders"
               :items="topProducts"
-              :loading="loading"
-              loading-text="Loading..."
               :items-per-page="10"
               style="font-size: 0.8rem;"
             >
               <template #item.total_revenue="{ item }">
-                ${{ parseFloat(item.total_revenue || 0).toFixed(2) }}
+                Ksh {{ parseFloat(item.total_revenue || 0).toFixed(2) }}
               </template>
             </v-data-table>
           </v-card-text>
@@ -95,16 +104,21 @@
           </v-card-title>
           <v-divider />
           <v-card-text>
+            <div v-if="loading" class="d-flex justify-center pa-4">
+              <v-progress-circular indeterminate color="#E53935" size="24" />
+            </div>
+            <div v-else-if="categoryPerformance.length === 0" class="text-center pa-4" style="color: #999;">
+              No category performance data available.
+            </div>
             <v-data-table
+              v-else
               :headers="categoryHeaders"
               :items="categoryPerformance"
-              :loading="loading"
-              loading-text="Loading..."
               :items-per-page="10"
               style="font-size: 0.8rem;"
             >
               <template #item.revenue="{ item }">
-                ${{ parseFloat(item.revenue || 0).toFixed(2) }}
+                Ksh {{ parseFloat(item.revenue || 0).toFixed(2) }}
               </template>
             </v-data-table>
           </v-card-text>
@@ -148,7 +162,6 @@ export default {
     }
   },
   mounted() {
-    // Set default date range (last 30 days)
     const today = new Date()
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(today.getDate() - 30)
@@ -176,6 +189,9 @@ export default {
         if (categories.data.success) this.categoryPerformance = categories.data.data || []
       } catch (error) {
         console.error('Error fetching reports:', error)
+        this.salesReport = []
+        this.topProducts = []
+        this.categoryPerformance = []
         this.$nuxt.$emit('show-snackbar', { message: 'Failed to load reports', color: 'error' })
       } finally {
         this.loading = false

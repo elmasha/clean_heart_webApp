@@ -86,10 +86,20 @@
 
 <script>
 import { mapState } from 'vuex'
+import ProfileSection from '~/components/account/ProfileSection.vue'
+import OrdersSection from '~/components/account/OrdersSection.vue'
+import AddressesSection from '~/components/account/AddressesSection.vue'
+import WishlistSection from '~/components/account/WishlistSection.vue'
 
 export default {
   name: 'AccountPage',
   middleware: 'auth',
+  components: {
+    ProfileSection,
+    OrdersSection,
+    AddressesSection,
+    WishlistSection
+  },
   data() {
     return {
       activeSection: 'profile',
@@ -180,12 +190,9 @@ export default {
       
       this.loadingOrders = true
       try {
-        const { data } = await this.$axios.get('/api/orders', {
-          params: { firebaseUid: this.firebaseUid },
-          withCredentials: false
-        })
-        if (data.success) {
-          this.orders = data.data || []
+        const result = await this.$store.dispatch('fetchOrders', this.firebaseUid)
+        if (result) {
+          this.orders = result
         }
       } catch (error) {
         console.error('Fetch orders error:', error)
@@ -199,7 +206,6 @@ export default {
       
       this.loadingAddresses = true
       try {
-        // Get addresses from user profile
         const { data } = await this.$axios.get('/api/users/profile', {
           params: { firebaseUid: this.firebaseUid },
           withCredentials: false
@@ -222,9 +228,13 @@ export default {
       
       this.loadingWishlist = true
       try {
-        // If you have a wishlist endpoint, use it
-        // For now, we'll use a placeholder
-        this.wishlist = []
+        const { data } = await this.$axios.get('/api/wishlist', {
+          params: { firebaseUid: this.firebaseUid },
+          withCredentials: false
+        })
+        if (data.success) {
+          this.wishlist = data.data || []
+        }
       } catch (error) {
         console.error('Fetch wishlist error:', error)
         this.wishlist = []

@@ -23,6 +23,7 @@
               style="width: 32px; height: 32px; border-radius: 50%; background: #000;"
             >
               <v-icon color="#E53935" size="18">mdi-heart</v-icon>
+              
             </div>
             <span
               style="font-size: 1.1rem; font-weight: 900; letter-spacing: 3px; color: #000; text-transform: uppercase;"
@@ -208,7 +209,7 @@
             
             <!-- Price -->
             <div style="font-weight: 700; font-size: 0.9rem; color: #000; margin-top: 4px;">
-              ${{ formatPrice(getUnitPrice(item)) }}
+              Ksh {{ formatPrice(getUnitPrice(item)) }}
             </div>
             
             <!-- Quantity Controls -->
@@ -238,7 +239,7 @@
           <!-- Item Total & Remove -->
           <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
             <span style="font-weight: 700; font-size: 0.95rem; color: #000;">
-              ${{ formatPrice(getItemTotal(item)) }}
+              Ksh {{ formatPrice(getItemTotal(item)) }}
             </span>
             <v-btn 
               icon 
@@ -259,7 +260,7 @@
       >
         <div class="d-flex justify-space-between mb-3">
           <span style="font-weight: 600; font-size: 0.9rem;">Subtotal</span>
-          <span style="font-weight: 700; font-size: 1rem;">${{ formatPrice(cartTotal) }}</span>
+          <span style="font-weight: 700; font-size: 1rem;">Ksh {{ formatPrice(cartTotal) }}</span>
         </div>
         <div class="d-flex justify-space-between mb-4">
           <span style="font-size: 0.8rem; color: #666;">Shipping calculated at checkout</span>
@@ -385,6 +386,12 @@
             <nuxt-link to="/terms" style="font-size: 0.75rem; color: rgba(255,255,255,0.3); text-decoration: none;">Terms of Service</nuxt-link>
           </div>
         </div>
+        <!-- ✅ Added Designed by Elmasha Omondi -->
+        <div class="text-center mt-4">
+          <span style="font-size: 0.7rem; color: rgba(255,255,255,0.2); letter-spacing: 1px;">
+            Designed by <span style="color: rgba(255,255,255,0.4);">Elmasha Omondi</span>
+          </span>
+        </div>
       </v-container>
     </footer>
 
@@ -411,6 +418,7 @@ export default {
       isMobile: false,
       windowWidth: 0,
       navLinks: [
+        { title: 'Home', to: '/' },        // ✅ Added Home link
         { title: 'Shop', to: '/shop' },
         { title: 'New', to: '/new' },
         { title: 'Best Sellers', to: '/best-sellers' },

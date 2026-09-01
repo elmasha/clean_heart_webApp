@@ -1,4 +1,3 @@
-<!-- components/admin/OrdersSection.vue -->
 <template>
   <div>
     <div class="d-flex justify-space-between align-center mb-6 flex-wrap" style="gap: 12px;">
@@ -23,11 +22,17 @@
 
     <v-card style="border-radius: 0;">
       <v-card-text>
+        <div v-if="loading" class="d-flex justify-center pa-8">
+          <v-progress-circular indeterminate color="#E53935" size="40" />
+        </div>
+        <div v-else-if="orders.length === 0" class="text-center pa-8" style="color: #999;">
+          <v-icon size="48" color="grey lighten-1">mdi-package-variant</v-icon>
+          <p class="mt-4">No orders found.</p>
+        </div>
         <v-data-table
+          v-else
           :headers="headers"
           :items="orders"
-          :loading="loading"
-          loading-text="Loading orders..."
           :items-per-page="20"
           style="font-size: 0.8rem;"
         >
@@ -38,7 +43,7 @@
           </template>
 
           <template #item.total_amount="{ item }">
-            ${{ parseFloat(item.total_amount).toFixed(2) }}
+            Ksh {{ parseFloat(item.total_amount || 0).toFixed(2) }}
           </template>
 
           <template #item.created_at="{ item }">
@@ -101,22 +106,29 @@
             :items="selectedOrder.items || []"
             hide-default-footer
             style="font-size: 0.8rem;"
-          />
+          >
+            <template #item.price_per_unit="{ item }">
+              Ksh {{ parseFloat(item.price_per_unit || 0).toFixed(2) }}
+            </template>
+            <template #item.total_price="{ item }">
+              Ksh {{ parseFloat(item.total_price || 0).toFixed(2) }}
+            </template>
+          </v-data-table>
 
           <v-divider class="my-4" />
 
           <v-row>
             <v-col cols="4">
               <div style="font-weight: 600; font-size: 0.8rem; color: #999; text-transform: uppercase; letter-spacing: 1px;">Subtotal</div>
-              <div>${{ parseFloat(selectedOrder.subtotal || 0).toFixed(2) }}</div>
+              <div>Ksh {{ parseFloat(selectedOrder.subtotal || 0).toFixed(2) }}</div>
             </v-col>
             <v-col cols="4">
               <div style="font-weight: 600; font-size: 0.8rem; color: #999; text-transform: uppercase; letter-spacing: 1px;">Shipping</div>
-              <div>${{ parseFloat(selectedOrder.shipping_cost || 0).toFixed(2) }}</div>
+              <div>Ksh {{ parseFloat(selectedOrder.shipping_cost || 0).toFixed(2) }}</div>
             </v-col>
             <v-col cols="4">
               <div style="font-weight: 600; font-size: 0.8rem; color: #999; text-transform: uppercase; letter-spacing: 1px;">Total</div>
-              <div style="font-size: 1.2rem; font-weight: 700; color: #000;">${{ parseFloat(selectedOrder.total_amount || 0).toFixed(2) }}</div>
+              <div style="font-size: 1.2rem; font-weight: 700; color: #000;">Ksh {{ parseFloat(selectedOrder.total_amount || 0).toFixed(2) }}</div>
             </v-col>
           </v-row>
         </v-card-text>
@@ -165,9 +177,12 @@ export default {
         const { data } = await this.$axios.get('/api/admin/orders', { params })
         if (data.success) {
           this.orders = data.data || []
+        } else {
+          this.orders = []
         }
       } catch (error) {
         console.error('Error fetching orders:', error)
+        this.orders = []
         this.$nuxt.$emit('show-snackbar', { message: 'Failed to load orders', color: 'error' })
       } finally {
         this.loading = false

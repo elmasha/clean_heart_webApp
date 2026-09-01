@@ -67,17 +67,21 @@
                     </template>
                   </v-img>
                   <div class="product-overlay d-flex align-center justify-center" style="position: absolute; inset: 0; background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s;">
-                    <v-btn color="white" dark height="40" class="px-5" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; font-weight: 600;" @click.prevent="quickAdd(product)">
+                    <v-btn color="black" dark height="40" class="px-5" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; font-weight: 600;" @click.prevent="quickAdd(product)">
                       Quick Add
                     </v-btn>
                   </div>
                 </div>
 
                 <div>
-                  <div style="font-size: 0.75rem; font-weight: 600; color: #000; margin-bottom: 3px;">{{ product.name }}</div>
+                  <div style="font-size: 0.75rem; font-weight: 600; color: #000; margin-bottom: 3px;">
+                    {{ product.name }}
+                  </div>
                   <div class="d-flex align-center justify-space-between">
-                    <span style="font-size: 0.8rem; font-weight: 700; color: #000;">${{ parseFloat(product.price).toFixed(2) }}</span>
-                    <span v-if="product.created_at" style="font-size: 0.65rem; color: #E53935; font-weight: 600;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: #E53935;">
+                      Ksh {{ parseFloat(product.price || product.base_price || 0).toFixed(2) }}
+                    </span>
+                    <span v-if="product.created_at" style="font-size: 0.65rem; color: #999; font-weight: 500;">
                       {{ daysSince(product.created_at) }} days ago
                     </span>
                   </div>
@@ -140,10 +144,21 @@ export default {
   computed: {
     ...mapState({
       loading: state => state.loading,
+      products: state => state.products,
     }),
     ...mapGetters(['getNewArrivals']),
     newProducts() {
-      return this.getNewArrivals
+      // ✅ Try getter first
+      const fromGetter = this.getNewArrivals
+      if (fromGetter && fromGetter.length > 0) {
+        return fromGetter
+      }
+      
+      // ✅ Fallback: Manual filter
+      return this.products
+        .filter(p => p.is_new === true || p.is_new === 1)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 8)
     },
     firebaseUid() {
       return this.$store.state.authUser?.uid || null
@@ -154,6 +169,7 @@ export default {
   },
   methods: {
     daysSince(dateString) {
+      if (!dateString) return 0
       const date = new Date(dateString)
       const now = new Date()
       const diff = Math.floor((now - date) / (1000 * 60 * 60 * 24))
@@ -164,23 +180,74 @@ export default {
         this.$router.push('/login?redirect=/new')
         return
       }
-      const result = await this.$store.dispatch('addToCart', {
-        firebaseUid: this.firebaseUid,
-        productId: product.id,
-        qty: 1,
-        variant: 'M'
-      })
-      if (result.success) {
-        this.$nuxt.$emit('show-snackbar', { message: `${product.name} added!`, color: 'black' })
+      
+      try {
+        // ✅ Get the full product with variants
+        const result = await this.$store.dispatch('fetchProduct', product.id)
+        const fullProduct = result || product
+        
+        let variantId = null
+        let variantDisplay = 'Standard'
+        
+        if (fullProduct.variants && fullProduct.variants.all && fullProduct.variants.all.length > 0) {
+          const firstVariant = fullProduct.variants.all[0]
+          variantId = firstVariant.id
+          variantDisplay = `${firstVariant.color || ''} / ${firstVariant.size || ''}`.trim() || 'Standard'
+        }
+
+        if (!variantId) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: 'No variant available', 
+            color: 'error' 
+          })
+          return
+        }
+
+        const cartResult = await this.$store.dispatch('addToCart', {
+          firebaseUid: this.firebaseUid,
+          productId: product.id,
+          qty: 1,
+          variant: variantDisplay,
+          variantId: variantId
+        })
+        
+        if (cartResult.success) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: `${product.name} added to cart!`, 
+            color: 'black' 
+          })
+        } else {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: cartResult.error || 'Failed to add to cart', 
+            color: 'error' 
+          })
+        }
+      } catch (error) {
+        console.error('Quick add error:', error)
+        this.$nuxt.$emit('show-snackbar', { 
+          message: 'Something went wrong', 
+          color: 'error' 
+        })
       }
     },
     subscribe() {
       if (!this.email) {
-        this.$nuxt.$emit('show-snackbar', { message: 'Please enter your email', color: 'error' })
+        this.$nuxt.$emit('show-snackbar', { 
+          message: 'Please enter your email', 
+          color: 'error' 
+        })
         return
       }
-      this.$nuxt.$emit('show-snackbar', { message: "You'll be notified of new drops!", color: '#E53935' })
+      this.$nuxt.$emit('show-snackbar', { 
+        message: "You'll be notified of new drops!", 
+        color: '#E53935' 
+      })
       this.email = ''
+    }
+  },
+  head() {
+    return { 
+      title: 'New Arrivals | Clean Heart'
     }
   }
 }

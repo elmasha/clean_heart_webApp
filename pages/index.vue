@@ -143,23 +143,58 @@
             </div>
           </v-col>
 
-          <!-- Right Hero Image -->
+          <!-- ✅ Right Hero Image - Now fetches featured product -->
           <v-col cols="12" md="3" class="pa-0 d-none d-md-block">
             <div style="height: 85vh; background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%); position: relative; overflow: hidden;">
-              <div class="d-flex align-center justify-center" style="height: 100%;">
-                <div class="text-center">
-                  <v-icon size="120" color="grey lighten-2">mdi-tshirt-crew-outline</v-icon>
-                  <div class="mt-4" style="font-size: 0.75rem; color: #999; letter-spacing: 2px; text-transform: uppercase;">
-                    Clean Heart Tee
-                  </div>
-                  <div class="mt-2" style="font-size: 1.5rem; font-weight: 700;">$45.00</div>
+              <div class="d-flex align-center justify-center" style="height: 100%; padding: 20px;">
+                <div class="text-center" style="width: 100%;">
+                  <!-- ✅ Show featured product or fallback -->
+                  <template v-if="featuredProduct">
+                    <v-img
+                      :src="featuredProduct.image_url || '/placeholder-product.jpg'"
+                      contain
+                      style="width: 100%; height: 300px;"
+                    >
+                      <template #placeholder>
+                        <div class="d-flex align-center justify-center fill-height">
+                          <v-icon size="80" color="grey lighten-1">mdi-tshirt-crew-outline</v-icon>
+                        </div>
+                      </template>
+                    </v-img>
+                    <div class="mt-4" style="font-size: 0.75rem; color: #999; letter-spacing: 2px; text-transform: uppercase;">
+                      {{ featuredProduct.name }}
+                    </div>
+                    <div class="mt-2" style="font-size: 1.5rem; font-weight: 700; color: #000;">
+                      Ksh {{ parseFloat(featuredProduct.price).toFixed(2) }}
+                    </div>
+                    <v-btn
+                      color="black"
+                      dark
+                      small
+                      class="mt-3"
+                      style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; font-weight: 600;"
+                      :to="`/product/${featuredProduct.id}`"
+                    >
+                      Shop Now
+                    </v-btn>
+                  </template>
+                  
+                  <!-- Fallback when no featured product -->
+                  <template v-else>
+                    <v-icon size="120" color="grey lighten-2">mdi-tshirt-crew-outline</v-icon>
+                    <div class="mt-4" style="font-size: 0.75rem; color: #999; letter-spacing: 2px; text-transform: uppercase;">
+                      Clean Heart Tee
+                    </div>
+                    <div class="mt-2" style="font-size: 1.5rem; font-weight: 700;">Ksh 45.00</div>
+                  </template>
                 </div>
               </div>
+              <!-- Navigation Arrows -->
               <div class="d-flex" style="position: absolute; bottom: 0; right: 0;">
-                <v-btn icon tile large style="border-radius: 0; background: #000;" dark>
+                <v-btn icon tile large style="border-radius: 0; background: #000;" dark @click="prevFeatured">
                   <v-icon>mdi-chevron-left</v-icon>
                 </v-btn>
-                <v-btn icon tile large style="border-radius: 0; background: #E53935;" dark>
+                <v-btn icon tile large style="border-radius: 0; background: #E53935;" dark @click="nextFeatured">
                   <v-icon>mdi-chevron-right</v-icon>
                 </v-btn>
               </div>
@@ -271,7 +306,7 @@
                   </v-img>
                   <div class="product-overlay d-flex align-center justify-center" style="position: absolute; inset: 0; background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s;">
                     <v-btn
-                      color="white"
+                      color="black"
                       dark
                       height="44"
                       class="px-6"
@@ -289,7 +324,7 @@
                   </div>
                   <div class="d-flex align-center justify-space-between">
                     <span style="font-size: 0.85rem; font-weight: 700; color: #000;">
-                      ${{ parseFloat(product.price).toFixed(2) }}
+                      Ksh {{ parseFloat(product.price).toFixed(2) }}
                     </span>
                     <div v-if="product.colors" class="d-flex" style="gap: 4px;">
                       <div
@@ -442,6 +477,7 @@ export default {
       selectedColor: 'Black',
       activeFilter: 'All',
       addingToCart: false,
+      featuredIndex: 0,
       categories: ['Hoodies', 'Sweatshirts', 'T-Shirts', 'Crop Tops'],
       infoLinks: [
         { title: 'Shipping', to: '/shipping' },
@@ -466,6 +502,18 @@ export default {
       authUser: state => state.authUser,
     }),
     ...mapGetters(['getCartCount']),
+    
+    // ✅ Featured products (is_featured = true)
+    featuredProducts() {
+      return this.products.filter(p => p.is_featured === true || p.is_featured === 1)
+    },
+    
+    // ✅ Current featured product
+    featuredProduct() {
+      if (this.featuredProducts.length === 0) return null
+      return this.featuredProducts[this.featuredIndex] || this.featuredProducts[0]
+    },
+    
     filteredProducts() {
       if (this.activeFilter === 'All') return this.products.slice(0, 8)
       return this.products.filter(p => p.category === this.activeFilter).slice(0, 8)
@@ -479,7 +527,6 @@ export default {
     await store.dispatch('fetchCategories')
   },
   mounted() {
-    // Check if user is logged in and fetch cart
     if (this.firebaseUid) {
       console.log('IndexPage mounted - fetching cart for:', this.firebaseUid)
       this.$store.dispatch('fetchCart', this.firebaseUid)
@@ -501,6 +548,66 @@ export default {
       const el = document.getElementById('products')
       if (el) el.scrollIntoView({ behavior: 'smooth' })
     },
+
+    // ✅ Navigate featured products
+    nextFeatured() {
+      if (this.featuredProducts.length === 0) return
+      this.featuredIndex = (this.featuredIndex + 1) % this.featuredProducts.length
+    },
+    
+    prevFeatured() {
+      if (this.featuredProducts.length === 0) return
+      this.featuredIndex = (this.featuredIndex - 1 + this.featuredProducts.length) % this.featuredProducts.length
+    },
+
+    // ✅ Helper to get the first available variant for a product
+    getFirstVariant(product) {
+      if (!product) return null
+      
+      if (product.variants && product.variants.all && product.variants.all.length > 0) {
+        const firstVariant = product.variants.all[0]
+        return {
+          id: firstVariant.id,
+          color: firstVariant.color || 'Black',
+          size: firstVariant.size || 'M',
+          display: `${firstVariant.color || 'Black'} / ${firstVariant.size || 'M'}`
+        }
+      }
+      
+      if (product.colors) {
+        const colorList = product.colors.split(',')
+        const firstColor = colorList[0]?.trim() || 'Black'
+        return {
+          id: null,
+          color: firstColor,
+          size: 'M',
+          display: `${firstColor} / M`
+        }
+      }
+      
+      return {
+        id: null,
+        color: 'Black',
+        size: 'M',
+        display: 'Black / M'
+      }
+    },
+
+    // ✅ Get full product with variants
+    async getFullProduct(productId) {
+      let product = this.products.find(p => p.id === productId)
+      
+      if (!product || !product.variants) {
+        console.log('Fetching full product for ID:', productId)
+        const result = await this.$store.dispatch('fetchProduct', productId)
+        if (result) {
+          product = result
+        }
+      }
+      
+      return product
+    },
+
     async addFeaturedToCart() {
       if (!this.firebaseUid) {
         this.$router.push('/login?redirect=/')
@@ -509,11 +616,62 @@ export default {
 
       this.addingToCart = true
       try {
+        const product = this.featuredProduct
+        
+        if (!product) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: 'Product not found', 
+            color: 'error' 
+          })
+          this.addingToCart = false
+          return
+        }
+
+        // Get full product with variants
+        const fullProduct = await this.getFullProduct(product.id)
+        
+        if (!fullProduct) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: 'Product not found', 
+            color: 'error' 
+          })
+          this.addingToCart = false
+          return
+        }
+
+        let variantId = null
+        let variantDisplay = `${this.selectedColor} / ${this.selectedSize}`
+        
+        if (fullProduct.variants && fullProduct.variants.all) {
+          const matchingVariant = fullProduct.variants.all.find(v => {
+            const colorMatch = v.color && v.color.toLowerCase() === this.selectedColor.toLowerCase()
+            const sizeMatch = v.size && v.size.toLowerCase() === this.selectedSize.toLowerCase()
+            return colorMatch && sizeMatch
+          })
+          
+          if (matchingVariant) {
+            variantId = matchingVariant.id
+          } else if (fullProduct.variants.all.length > 0) {
+            variantId = fullProduct.variants.all[0].id
+            variantDisplay = `${fullProduct.variants.all[0].color || 'Black'} / ${fullProduct.variants.all[0].size || 'M'}`
+          }
+        }
+        
+        if (!variantId) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: 'No variant available for this product', 
+            color: 'error' 
+          })
+          this.addingToCart = false
+          return
+        }
+
         const result = await this.$store.dispatch('addToCart', {
           firebaseUid: this.firebaseUid,
-          productId: 1,
+          productId: product.id,
           qty: 1,
-          variant: `${this.selectedColor} / ${this.selectedSize}`
+          variant: variantDisplay,
+          variantId: variantId
         })
 
         if (result.success) {
@@ -537,6 +695,7 @@ export default {
         this.addingToCart = false
       }
     },
+
     async quickAdd(product) {
       if (!this.firebaseUid) {
         this.$router.push('/login?redirect=/')
@@ -544,11 +703,35 @@ export default {
       }
 
       try {
+        const fullProduct = await this.getFullProduct(product.id)
+        
+        if (!fullProduct) {
+          this.$nuxt.$emit('show-snackbar', { 
+            message: 'Product not found', 
+            color: 'error' 
+          })
+          return
+        }
+
+        let variantId = null
+        let variantDisplay = 'M'
+        
+        if (fullProduct.variants && fullProduct.variants.all && fullProduct.variants.all.length > 0) {
+          const firstVariant = fullProduct.variants.all[0]
+          variantId = firstVariant.id
+          variantDisplay = `${firstVariant.color || 'Black'} / ${firstVariant.size || 'M'}`
+        } else if (fullProduct.colors) {
+          const colorList = fullProduct.colors.split(',')
+          const firstColor = colorList[0]?.trim() || 'Black'
+          variantDisplay = `${firstColor} / M`
+        }
+
         const result = await this.$store.dispatch('addToCart', {
           firebaseUid: this.firebaseUid,
           productId: product.id,
           qty: 1,
-          variant: 'M' // Default variant
+          variant: variantDisplay,
+          variantId: variantId
         })
 
         if (result.success) {
@@ -570,6 +753,7 @@ export default {
         })
       }
     },
+
     subscribe() {
       if (!this.email) {
         this.$nuxt.$emit('show-snackbar', { 

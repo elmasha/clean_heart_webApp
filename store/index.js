@@ -25,11 +25,26 @@ export const getters = {
     )
   },
   getNewArrivals: (state) => {
-    return state.products.filter(p => p.is_new === true).slice(0, 8)
+    return state.products.filter(p => p.is_new === true || p.is_new === 1).slice(0, 8)
   },
   getBestSellers: (state) => {
-    return state.products
-      .filter(p => p.is_best_seller === true || p.is_bestseller === true)
+    // ✅ Check for best seller in multiple ways
+    const bestSellers = state.products.filter(p => {
+      // Check both field names and both data types
+      const isBestSeller = p.is_best_seller === true || 
+                          p.is_best_seller === 1 || 
+                          p.is_bestseller === true || 
+                          p.is_bestseller === 1
+      return isBestSeller
+    })
+    
+    // ✅ Sort by sold_count if available
+    return bestSellers
+      .sort((a, b) => {
+        const aSold = a.sold_count || 0
+        const bSold = b.sold_count || 0
+        return bSold - aSold
+      })
       .slice(0, 8)
   },
   getCartItems: (state) => state.cart,
@@ -156,6 +171,35 @@ export const actions = {
     }
   },
 
+  // ✅ NEW: Fetch best sellers from API
+  async fetchBestSellers({ commit }) {
+    commit('SET_LOADING', true)
+    try {
+      // First try to get from products endpoint with filter
+      const { data } = await this.$axios.get('/api/products', {
+        params: { bestsellers: true, limit: 8 }
+      })
+      
+      if (data.success) {
+        // Filter best sellers from the response
+        const bestSellers = data.data.filter(p => 
+          p.is_best_seller === true || 
+          p.is_best_seller === 1 || 
+          p.is_bestseller === true || 
+          p.is_bestseller === 1
+        )
+        commit('SET_PRODUCTS', data.data)
+        return bestSellers
+      }
+      return []
+    } catch (err) {
+      console.error('fetchBestSellers error:', err)
+      return []
+    } finally {
+      commit('SET_LOADING', false)
+    }
+  },
+
   // ========== CATEGORIES ==========
   async fetchCategories({ commit }) {
     try {
@@ -196,68 +240,92 @@ export const actions = {
     }
   },
 
-  async addToCart({ commit, dispatch }, { firebaseUid, productId, qty, variant }) {
+  // ✅ FIXED: addToCart accepts variantId directly
+  async addToCart({ commit, dispatch }, { firebaseUid, productId, qty, variant, variantId: directVariantId }) {
     if (!firebaseUid) {
       return { success: false, error: 'User not authenticated' }
     }
 
     try {
-      console.log('Adding to cart:', { firebaseUid, productId, qty, variant })
+      console.log('========== ADD TO CART START ==========')
+      console.log('Input:', { firebaseUid, productId, qty, variant, directVariantId })
       
-      // Find the variant ID
-      let variantId = null
+      let variantId = directVariantId || null
       
-      // Try to get product from store first
-      let product = this.state.products.find(p => p.id === parseInt(productId))
-      
-      // If not in store, fetch it
-      if (!product) {
-        console.log('Product not in store, fetching...')
-        const { data } = await this.$axios.get(`/api/products/${productId}`)
-        product = data.data || data
-      }
-      
-      if (product && product.variants && product.variants.all) {
-        // Parse variant string (e.g., "Black / M")
-        const parts = variant.split('/').map(s => s.trim())
-        const color = parts[0] || ''
-        const size = parts[1] || ''
+      // If variantId is provided directly, use it immediately
+      if (variantId) {
+        console.log('✅ Using direct variantId:', variantId)
+      } else {
+        console.log('No direct variantId provided, searching...')
         
-        console.log('Looking for variant:', { color, size })
+        let product = null
         
-        // Find matching variant
-        const matchingVariant = product.variants.all.find(v => {
-          const colorMatch = v.color && v.color.toLowerCase() === color.toLowerCase()
-          const sizeMatch = v.size && v.size.toLowerCase() === size.toLowerCase()
-          return colorMatch && sizeMatch
-        })
+        // Try to get product from store first
+        product = this.state.products.find(p => p.id === parseInt(productId))
         
-        if (matchingVariant) {
-          variantId = matchingVariant.id
-          console.log('Found matching variant:', matchingVariant)
-        } else {
-          // Try to find by size only
-          const sizeMatch = product.variants.all.find(v => 
-            v.size && v.size.toLowerCase() === size.toLowerCase()
-          )
-          if (sizeMatch) {
-            variantId = sizeMatch.id
-            console.log('Found variant by size:', sizeMatch)
+        // If not in store, fetch it
+        if (!product) {
+          console.log('Product not in store, fetching from API...')
+          const { data } = await this.$axios.get(`/api/products/${productId}`)
+          product = data.data || data
+        }
+        
+        console.log('Product found:', product?.name || 'Unknown')
+        console.log('Product variants:', product?.variants)
+        
+        if (product && product.variants && product.variants.all) {
+          const parts = variant.split('/').map(s => s.trim())
+          const color = parts[0] || ''
+          const size = parts[1] || ''
+          
+          console.log('Looking for variant - Color:', color, 'Size:', size)
+          
+          const matchingVariant = product.variants.all.find(v => {
+            const vColor = (v.color || '').toLowerCase().trim()
+            const vSize = (v.size || '').toLowerCase().trim()
+            const colorMatch = color.toLowerCase().trim() === vColor
+            const sizeMatch = size.toLowerCase().trim() === vSize
+            return colorMatch && sizeMatch
+          })
+          
+          if (matchingVariant) {
+            variantId = matchingVariant.id
+            console.log('✅ Found exact matching variant:', matchingVariant)
+          } else {
+            console.log('❌ No exact match found, trying fallback...')
+            
+            const sizeMatch = product.variants.all.find(v => {
+              const vSize = (v.size || '').toLowerCase().trim()
+              return size.toLowerCase().trim() === vSize
+            })
+            if (sizeMatch) {
+              variantId = sizeMatch.id
+              console.log('✅ Found variant by size:', sizeMatch)
+            } else {
+              const colorMatch = product.variants.all.find(v => {
+                const vColor = (v.color || '').toLowerCase().trim()
+                return color.toLowerCase().trim() === vColor
+              })
+              if (colorMatch) {
+                variantId = colorMatch.id
+                console.log('✅ Found variant by color:', colorMatch)
+              }
+            }
           }
+        }
+        
+        if (!variantId && product && product.variants && product.variants.all && product.variants.all.length > 0) {
+          variantId = product.variants.all[0].id
+          console.log('⚠️ Using first variant as fallback:', product.variants.all[0])
         }
       }
       
-      // If no variant found, use the first available variant
-      if (!variantId && product && product.variants && product.variants.all && product.variants.all.length > 0) {
-        variantId = product.variants.all[0].id
-        console.log('Using first variant:', variantId)
-      }
-      
       if (!variantId) {
+        console.error('❌ No variant found for product:', productId)
         return { success: false, error: 'No variant available for this product' }
       }
 
-      console.log('Adding to cart with variantId:', variantId)
+      console.log('✅ Final variantId:', variantId)
 
       const { data } = await this.$axios.post('/api/cart', {
         firebaseUid,
@@ -265,15 +333,21 @@ export const actions = {
         quantity: qty
       })
 
+      console.log('📥 Cart API response:', data)
+
       if (data.success) {
-        console.log('Add to cart successful, refreshing cart...')
+        console.log('✅ Add to cart successful, refreshing cart...')
         await dispatch('fetchCart', firebaseUid)
+        console.log('========== ADD TO CART END (SUCCESS) ==========')
         return { success: true }
       } else {
+        console.error('❌ Add to cart failed:', data.error)
+        console.log('========== ADD TO CART END (FAILED) ==========')
         return { success: false, error: data.error || 'Failed to add to cart' }
       }
     } catch (err) {
-      console.error('addToCart error:', err)
+      console.error('❌ addToCart error:', err)
+      console.log('========== ADD TO CART END (ERROR) ==========')
       return { 
         success: false, 
         error: err.response?.data?.error || 'Failed to add to cart' 
@@ -360,88 +434,94 @@ export const actions = {
   },
 
   // ========== ORDERS ==========
-async createOrder({ commit, dispatch }, orderData) {
+  async createOrder({ commit, dispatch }, orderData) {
     try {
-        const { data } = await this.$axios.post('/api/orders', orderData, {
-            withCredentials: false
-        });
-        
-        if (data.success) {
-            commit('CLEAR_CART');
-            return { 
-                success: true, 
-                data: data.data 
-            };
-        } else {
-            return { 
-                success: false, 
-                error: data.error || 'Failed to create order' 
-            };
-        }
-    } catch (err) {
-        console.error('createOrder error:', err);
+      const { data } = await this.$axios.post('/api/orders', orderData, {
+        withCredentials: false
+      })
+      
+      if (data.success) {
+        commit('CLEAR_CART')
         return { 
-            success: false, 
-            error: err.response?.data?.error || 'Failed to create order' 
-        };
+          success: true, 
+          data: data.data 
+        }
+      } else {
+        return { 
+          success: false, 
+          error: data.error || 'Failed to create order' 
+        }
+      }
+    } catch (err) {
+      console.error('createOrder error:', err)
+      return { 
+        success: false, 
+        error: err.response?.data?.error || 'Failed to create order' 
+      }
     }
-},
+  },
 
-async fetchOrders({ commit }, firebaseUid) {
-    if (!firebaseUid) return;
+  // ✅ FIXED: fetchOrders now returns data
+  async fetchOrders({ commit }, firebaseUid) {
+    if (!firebaseUid) return []
 
     try {
-        const { data } = await this.$axios.get(`/api/orders?firebaseUid=${firebaseUid}`, {
-            withCredentials: false
-        });
-        if (data.success) {
-            commit('SET_ORDERS', data.data || []);
-        }
+      const { data } = await this.$axios.get(`/api/orders?firebaseUid=${firebaseUid}`, {
+        withCredentials: false
+      })
+      
+      if (data.success) {
+        commit('SET_ORDERS', data.data || [])
+        return data.data || []
+      }
+      return []
     } catch (err) {
-        console.error('fetchOrders error:', err);
+      console.error('fetchOrders error:', err)
+      return []
     }
-},
+  },
 
-async fetchOrderById({ commit }, { firebaseUid, orderId }) {
+  // ✅ FIXED: fetchOrderById now returns data
+  async fetchOrderById({ commit }, { firebaseUid, orderId }) {
     try {
-        const { data } = await this.$axios.get(`/api/orders/${orderId}?firebaseUid=${firebaseUid}`, {
-            withCredentials: false
-        });
-        return data.data || data;
+      const { data } = await this.$axios.get(`/api/orders/${orderId}?firebaseUid=${firebaseUid}`, {
+        withCredentials: false
+      })
+      
+      console.log('Order details response:', data)
+      return data.data || data
     } catch (err) {
-        console.error('fetchOrderById error:', err);
-        return null;
+      console.error('fetchOrderById error:', err)
+      return null
     }
-},
+  },
 
-    // ========== ADMIN ORDERS ==========
-    async fetchAdminOrders({ commit }) {
-        try {
-            const { data } = await this.$axios.get('/api/admin/orders');
-            if (data.success) {
-                commit('SET_ADMIN_ORDERS', data.data || []);
-            }
-        } catch (err) {
-            console.error('fetchAdminOrders error:', err);
-        }
-    },
+  // ========== ADMIN ORDERS ==========
+  async fetchAdminOrders({ commit }) {
+    try {
+      const { data } = await this.$axios.get('/api/admin/orders')
+      if (data.success) {
+        commit('SET_ADMIN_ORDERS', data.data || [])
+      }
+    } catch (err) {
+      console.error('fetchAdminOrders error:', err)
+    }
+  },
 
-    async updateOrderStatus({ dispatch }, { orderId, status }) {
-        try {
-            const { data } = await this.$axios.put(`/api/admin/orders/${orderId}/status`, { status });
-            if (data.success) {
-                await dispatch('fetchAdminOrders');
-                return { success: true };
-            } else {
-                return { success: false, error: data.error };
-            }
-        } catch (err) {
-            console.error('updateOrderStatus error:', err);
-            return { success: false };
-        }
-    },
-
-  
+  async updateOrderStatus({ dispatch }, { orderId, status }) {
+    try {
+      const { data } = await this.$axios.put(`/api/admin/orders/${orderId}/status`, { status })
+      if (data.success) {
+        await dispatch('fetchAdminOrders')
+        return { success: true }
+      } else {
+        return { success: false, error: data.error }
+      }
+    } catch (err) {
+      console.error('updateOrderStatus error:', err)
+      return { success: false }
+    }
+  },
 
   // ========== AUTH ==========
   setAuthUser({ commit, dispatch }, user) {
