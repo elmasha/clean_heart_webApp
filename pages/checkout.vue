@@ -266,7 +266,6 @@
 
           <v-text-field
             v-model="mpesaPhoneInput"
-            prefix="254"
             label="M-Pesa Number"
             outlined
             hide-details
@@ -416,6 +415,8 @@ export default {
       
       CheckoutRequestID: null,
       queryLocked: false,
+      queryAttempts: 0,
+      maxQueryAttempts: 3,
       
       paymentOrderId: null,
       paymentOrderNumber: '',
@@ -439,9 +440,9 @@ export default {
     cartTotal() {
       return this.getCartTotal || 0
     },
-    // ✅ FIXED: Shipping cost - free over 7500 Ksh (approx $75)
     shippingCost() {
-      return this.cartTotal >= 1 ? 0 : 1 // 500 Ksh shipping fee
+      // Free shipping for orders over 7500 Ksh (approx $50)
+      return this.cartTotal >= 1 ? 0 : 1
     },
     tax() {
       return this.cartTotal * 0.16
@@ -496,6 +497,7 @@ export default {
       if (item.product?.image) return item.product.image
       if (item.image_url) return item.image_url
       if (item.variant?.imageUrl) return item.variant.imageUrl
+      if (item.product?.image_url) return item.product.image_url
       return '/placeholder-product.jpg'
     },
 
@@ -557,6 +559,7 @@ export default {
         return false
       }
 
+      // Accept various phone formats
       const phoneRegex = /^[0-9+\-\s()]{8,15}$/
       if (!phoneRegex.test(this.shipping.phone)) {
         this.$nuxt.$emit('show-snackbar', { 
@@ -579,7 +582,7 @@ export default {
       this.processingResult = false;
     },
 
-    showResult(title, msg, processing, type = 'info', retryable = false) {
+    showResult(title, msg, processing = false, type = 'info', retryable = false) {
       this.resultDialog = true;
       this.resultTitle = title;
       this.resultMessage = msg;
@@ -647,6 +650,7 @@ export default {
       this.loading = true;
       this.CheckoutRequestID = null;
       this.queryLocked = false;
+      this.queryAttempts = 0;
 
       try {
         const orderData = {
@@ -654,7 +658,7 @@ export default {
           shipping_address: this.shipping,
           billing_address: this.shipping,
           payment_method: this.paymentMethod,
-          mpesaPhone: this.mpesaPhoneInput, // ✅ Send without "254" prefix, backend will format
+          mpesaPhone: this.mpesaPhoneInput,
           items: this.cartItems.map(item => ({
             variant_id: item.variantId || item.variant?.id || item.variant_id,
             product_id: item.product_id || item.product?.id,
@@ -730,7 +734,6 @@ export default {
             message: '🎉 Order placed successfully!',
             color: '#E53935'
           })
-          // ✅ FIXED: Redirect to /myorders/ for order detail
           this.$router.push(`/myorders/${data.data.id}`)
         } else {
           this.$nuxt.$emit('show-snackbar', {
@@ -765,54 +768,74 @@ export default {
     },
 
     async stkQuery() {
+      this.queryAttempts++;
+      
       try {
         const { data } = await this.$axios.post('/api/checkout/query-stk', {
           checkout_request_id: this.CheckoutRequestID,
         });
 
         console.log('STK Query Response:', data);
-        this.paymentDialog = false;
-        this.processingResult = false;
-
+        
         if (!data.success) {
           this.showResult('Error', data.message || 'Could not verify payment status.', false, 'error');
           return;
         }
 
         const result = data.data;
-        const resultCode = result.ResultCode;
+        const resultCode = String(result.ResultCode);
         const resultDesc = result.ResultDesc || '';
 
-        if (resultCode == 0 || resultCode === '0') {
+        // Check if payment was successful
+        if (resultCode === '0') {
+          // Payment successful - check payment status
           await this.checkPaymentStatus();
           return;
         }
 
-        if (resultCode == 1032 || resultCode === '1032') {
+        // Handle known error codes
+        if (resultCode === '1032') {
           this.showResult('Cancelled', 'You cancelled the payment on your phone. No money was deducted.', false, 'warning', true);
           return;
         }
 
-        if (resultCode == 2001 || resultCode === '2001') {
+        if (resultCode === '2001') {
           this.showResult('Wrong PIN', 'You entered the wrong M-Pesa PIN. Please try again.', false, 'warning', true);
           return;
         }
 
-        if (resultCode == 1 || resultCode === '1') {
+        if (resultCode === '1') {
           this.showResult('Insufficient Balance', 'Your M-Pesa balance is too low for this transaction.', false, 'warning', true);
+          return;
+        }
+
+        // If still pending and we haven't exceeded max attempts, try again
+        if (resultCode === '2002' && this.queryAttempts < this.maxQueryAttempts) {
+          setTimeout(() => {
+            this.stkQuery();
+          }, 5000);
           return;
         }
 
         this.showResult('Payment Failed', resultDesc || 'The payment could not be completed. Please try again.', false, 'warning', true);
       } catch (error) {
         console.error('STK Query Error:', error);
+        
+        if (this.queryAttempts < this.maxQueryAttempts) {
+          setTimeout(() => {
+            this.stkQuery();
+          }, 5000);
+          return;
+        }
+        
         this.paymentDialog = false;
         this.processingResult = false;
         this.showResult(
           'Network Error',
           'Could not reach the payment server. Please check your internet and verify your M-Pesa balance/SMS for confirmation.',
-          true,
-          'warning'
+          false,
+          'warning',
+          true
         );
       }
     },
@@ -828,24 +851,62 @@ export default {
           const status = response.data.data;
           
           if (status.payment_status === 'success' || status.payment_status === 'paid') {
+            this.paymentDialog = false;
+            this.processingResult = false;
             this.showResult(
               'Payment Successful!',
               `Your order #${this.paymentOrderNumber} has been confirmed.`,
               false,
               'success'
             );
+          } else if (status.payment_status === 'pending') {
+            // Still pending - try again after delay
+            this.paymentDialog = false;
+            this.processingResult = false;
+            this.showResult(
+              'Payment Processing',
+              'Your payment is being processed. Please check your order status.',
+              false,
+              'info'
+            );
           } else {
-            this.showResult('Payment Pending', 'Your payment is being processed. Please check your order status.', false, 'info');
+            this.paymentDialog = false;
+            this.processingResult = false;
+            this.showResult(
+              'Payment Status Unknown',
+              `Payment status: ${status.payment_status}. Please check your orders.`,
+              false,
+              'warning',
+              true
+            );
           }
+        } else {
+          this.paymentDialog = false;
+          this.processingResult = false;
+          this.showResult(
+            'Error',
+            'Could not verify payment status. Please check your orders.',
+            false,
+            'warning',
+            true
+          );
         }
       } catch (error) {
         console.error('Check payment status error:', error);
+        this.paymentDialog = false;
+        this.processingResult = false;
+        this.showResult(
+          'Error',
+          'Could not verify payment status. Please check your orders.',
+          false,
+          'warning',
+          true
+        );
       }
     },
 
     goToOrderConfirmation() {
       this.resultDialog = false;
-      // ✅ FIXED: Redirect to /myorders/ for order detail
       this.$router.push(`/myorders/${this.paymentOrderId}`);
     },
 
@@ -856,6 +917,7 @@ export default {
       this.queryLocked = false;
       this.loading = false;
       this.processingResult = false;
+      this.queryAttempts = 0;
     },
 
     closePaymentDialog() {
