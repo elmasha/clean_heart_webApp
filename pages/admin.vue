@@ -3,7 +3,6 @@
     <!-- Mobile Header with Navigation Drawer Toggle -->
     <v-app-bar
       v-if="$vuetify.breakpoint.smAndDown"
-      app
       flat
       color="white"
       height="56"
@@ -76,7 +75,7 @@
       </div>
     </v-navigation-drawer>
 
-    <v-container fluid class="pa-3 pa-md-6" >
+    <v-container fluid class="pt-0 px-3 px-md-6 pb-3 pb-md-6">
       <v-row>
         <!-- Desktop Sidebar -->
         <v-col cols="12" md="3" lg="2" class="sidebar-col" v-if="$vuetify.breakpoint.mdAndUp">
@@ -112,9 +111,9 @@
               </v-list-item>
             </v-list>
 
-            <div class="sidebar-footer">
+            <!-- <div class="sidebar-footer">
               <div class="text-caption text-center grey--text">v2.0 &mdash; {{ currentYear }}</div>
-            </div>
+            </div> -->
           </v-card>
         </v-col>
 
@@ -122,8 +121,17 @@
         <v-col cols="12" md="9" lg="10">
           <!-- Mobile Tab Navigation -->
           <div v-if="$vuetify.breakpoint.smAndDown" class="mobile-tabs mb-4">
-            <v-slide-group v-model="activeSection" mandatory show-arrows>
-              <v-slide-item v-for="item in menuItems" :key="item.id" v-slot="{ active, toggle }">
+            <v-slide-group
+              :value="menuItems.findIndex(i => i.id === activeSection)"
+              @change="idx => { if(idx >= 0) activeSection = menuItems[idx].id }"
+              mandatory
+              show-arrows
+            >
+              <v-slide-item
+                v-for="(item, idx) in menuItems"
+                :key="item.id"
+                v-slot="{ active, toggle }"
+              >
                 <v-btn
                   :class="['tab-btn', { 'tab-active': active }]"
                   @click="activeSection = item.id; toggle()"
@@ -684,7 +692,7 @@
                               <v-avatar size="24" color="#f5f5f5" class="mr-2">
                                 <v-icon size="12" color="#666">mdi-account</v-icon>
                               </v-avatar>
-                              <span class="text-truncate" style="max-width: 80px;">{{ item.firebase_uid }}</span>
+                              <span class="text-truncate" style="max-width: 0px;">{{ item.firebase_uid }}</span>
                             </div>
                           </td>
                           <td>
@@ -884,7 +892,7 @@
     </v-container>
 
     <!-- Product Dialog -->
-    <v-dialog v-model="productDialog" max-width="650" persistent scrollable>
+    <v-dialog v-model="productDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 650" :fullscreen="$vuetify.breakpoint.smAndDown" persistent scrollable>
       <v-card class="dialog-card" flat>
         <div class="dialog-header">
           <span class="dialog-title">{{ editingProduct ? 'Edit Product' : 'Add Product' }}</span>
@@ -954,7 +962,7 @@
     </v-dialog>
 
     <!-- Category Dialog -->
-    <v-dialog v-model="categoryDialog" max-width="500" persistent>
+    <v-dialog v-model="categoryDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 500" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
       <v-card class="dialog-card" flat>
         <div class="dialog-header">
           <span class="dialog-title">{{ editingCategory ? 'Edit Category' : 'Add Category' }}</span>
@@ -987,7 +995,7 @@
     </v-dialog>
 
     <!-- Variant Dialog -->
-    <v-dialog v-model="variantDialog" max-width="550" persistent>
+    <v-dialog v-model="variantDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 550" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
       <v-card class="dialog-card" flat>
         <div class="dialog-header">
           <span class="dialog-title">{{ editingVariant ? 'Edit Variant' : 'Add Variant' }}</span>
@@ -1050,7 +1058,7 @@
     </v-dialog>
 
     <!-- Order Detail Dialog -->
-    <v-dialog v-model="orderDetailDialog" max-width="700" persistent>
+    <v-dialog v-model="orderDetailDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 700" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
       <v-card class="dialog-card" flat v-if="selectedOrder">
         <div class="dialog-header">
           <span class="dialog-title">Order #{{ selectedOrder.order_number }}</span>
@@ -1128,7 +1136,7 @@
     </v-dialog>
 
     <!-- Delete Confirmation Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="400" persistent>
+    <v-dialog v-model="deleteDialog" :max-width="$vuetify.breakpoint.smAndDown ? 320 : 400" persistent>
       <v-card class="dialog-card" flat>
         <div class="pa-4 pa-md-6 text-center">
           <v-icon size="48" color="error" class="mb-3">mdi-alert-circle-outline</v-icon>
@@ -1303,6 +1311,36 @@ export default {
     }
   },
   methods: {
+    // ===== API Helper =====
+    async apiRequest(url, options = {}) {
+      try {
+        if (this.$axios && typeof this.$axios === 'function') {
+          const response = await this.$axios({
+            url,
+            ...options
+          })
+          return response.data
+        }
+        
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+          }
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        return await response.json()
+      } catch (error) {
+        console.error(`API Error (${url}):`, error)
+        throw error
+      }
+    },
+
     // Utilities
     showSnackbar(message, color = '#E53935') {
       this.snackbar = { show: true, message, color }
@@ -1330,12 +1368,9 @@ export default {
     async executeDelete() {
       this.saving = true
       try {
+        let url = ''
         if (this.deleteType === 'product') {
-          const { data } = await this.$axios.delete(`/api/admin/products/${this.deleteTarget.id}`)
-          if (data.success) {
-            this.showSnackbar('Product deleted', '#E53935')
-            this.fetchProducts()
-          }
+          url = `/api/admin/products/${this.deleteTarget.id}`
         } else if (this.deleteType === 'category') {
           if (this.deleteTarget.product_count > 0) {
             this.showSnackbar(`Cannot delete category with ${this.deleteTarget.product_count} products.`, 'error')
@@ -1343,21 +1378,22 @@ export default {
             this.saving = false
             return
           }
-          const { data } = await this.$axios.delete(`/api/admin/categories/${this.deleteTarget.id}`)
-          if (data.success) {
-            this.showSnackbar('Category deleted', '#E53935')
-            this.fetchCategories()
-          }
+          url = `/api/admin/categories/${this.deleteTarget.id}`
         } else if (this.deleteType === 'variant') {
-          const { data } = await this.$axios.delete(`/api/admin/variants/${this.deleteTarget.id}`)
-          if (data.success) {
-            this.showSnackbar('Variant deleted', '#E53935')
-            this.fetchVariants()
-          }
+          url = `/api/admin/variants/${this.deleteTarget.id}`
+        }
+        
+        const data = await this.apiRequest(url, { method: 'DELETE' })
+        
+        if (data.success) {
+          this.showSnackbar(`${this.deleteType} deleted`, '#E53935')
+          if (this.deleteType === 'product') this.fetchProducts()
+          else if (this.deleteType === 'category') this.fetchCategories()
+          else if (this.deleteType === 'variant') this.fetchVariants()
         }
         this.deleteDialog = false
       } catch (error) {
-        this.showSnackbar(error.response?.data?.error || `Failed to delete ${this.deleteType}`, 'error')
+        this.showSnackbar(error.message || `Failed to delete ${this.deleteType}`, 'error')
       } finally {
         this.saving = false
       }
@@ -1367,7 +1403,7 @@ export default {
     async fetchDashboardData() {
       this.loadingDashboard = true
       try {
-        const { data } = await this.$axios.get('/api/admin/dashboard')
+        const data = await this.apiRequest('/api/admin/dashboard')
         if (data.success) {
           const d = data.data
           this.stats = [
@@ -1393,7 +1429,10 @@ export default {
     async saveDeliverySettings() {
       this.savingDelivery = true
       try {
-        const { data } = await this.$axios.put('/api/admin/delivery-settings', this.deliverySettings)
+        const data = await this.apiRequest('/api/admin/delivery-settings', {
+          method: 'PUT',
+          body: JSON.stringify(this.deliverySettings)
+        })
         if (data.success) {
           this.showSnackbar('Delivery settings updated!', '#E53935')
         }
@@ -1409,9 +1448,7 @@ export default {
     async fetchProducts() {
       this.loadingProducts = true
       try {
-        const { data } = await this.$axios.get('/api/admin/products', {
-          params: { search: this.search, limit: 100 }
-        })
+        const data = await this.apiRequest(`/api/admin/products?search=${encodeURIComponent(this.search)}&limit=100`)
         if (data.success) {
           this.products = data.data || []
         }
@@ -1460,19 +1497,26 @@ export default {
       }
       this.saving = true
       try {
-        let response
+        let url = '/api/admin/products'
+        let method = 'POST'
+        
         if (this.editingProduct) {
-          response = await this.$axios.put(`/api/admin/products/${this.editingProduct.id}`, this.productForm)
-        } else {
-          response = await this.$axios.post('/api/admin/products', this.productForm)
+          url = `/api/admin/products/${this.editingProduct.id}`
+          method = 'PUT'
         }
-        if (response.data.success) {
+        
+        const data = await this.apiRequest(url, {
+          method,
+          body: JSON.stringify(this.productForm)
+        })
+        
+        if (data.success) {
           this.showSnackbar(`Product ${this.editingProduct ? 'updated' : 'created'} successfully`, '#E53935')
           this.productDialog = false
           this.fetchProducts()
         }
       } catch (error) {
-        this.showSnackbar(error.response?.data?.error || 'Failed to save product', 'error')
+        this.showSnackbar(error.message || 'Failed to save product', 'error')
       } finally {
         this.saving = false
       }
@@ -1482,7 +1526,7 @@ export default {
     async fetchCategories() {
       this.loadingCategories = true
       try {
-        const { data } = await this.$axios.get('/api/admin/categories')
+        const data = await this.apiRequest('/api/admin/categories')
         if (data.success) {
           this.categories = data.data || []
         }
@@ -1512,19 +1556,26 @@ export default {
       }
       this.saving = true
       try {
-        let response
+        let url = '/api/admin/categories'
+        let method = 'POST'
+        
         if (this.editingCategory) {
-          response = await this.$axios.put(`/api/admin/categories/${this.editingCategory.id}`, this.categoryForm)
-        } else {
-          response = await this.$axios.post('/api/admin/categories', this.categoryForm)
+          url = `/api/admin/categories/${this.editingCategory.id}`
+          method = 'PUT'
         }
-        if (response.data.success) {
+        
+        const data = await this.apiRequest(url, {
+          method,
+          body: JSON.stringify(this.categoryForm)
+        })
+        
+        if (data.success) {
           this.showSnackbar(`Category ${this.editingCategory ? 'updated' : 'created'} successfully`, '#E53935')
           this.categoryDialog = false
           this.fetchCategories()
         }
       } catch (error) {
-        this.showSnackbar(error.response?.data?.error || 'Failed to save category', 'error')
+        this.showSnackbar(error.message || 'Failed to save category', 'error')
       } finally {
         this.saving = false
       }
@@ -1538,7 +1589,7 @@ export default {
       }
       this.loadingVariants = true
       try {
-        const { data } = await this.$axios.get(`/api/admin/products/${this.selectedProduct}/variants`)
+        const data = await this.apiRequest(`/api/admin/products/${this.selectedProduct}/variants`)
         if (data.success) {
           this.variants = data.data || []
         }
@@ -1578,19 +1629,27 @@ export default {
       }
       this.saving = true
       try {
-        let response
+        let url, method
         if (this.editingVariant) {
-          response = await this.$axios.put(`/api/admin/variants/${this.editingVariant.id}`, this.variantForm)
+          url = `/api/admin/variants/${this.editingVariant.id}`
+          method = 'PUT'
         } else {
-          response = await this.$axios.post(`/api/admin/products/${this.selectedProduct}/variants`, this.variantForm)
+          url = `/api/admin/products/${this.selectedProduct}/variants`
+          method = 'POST'
         }
-        if (response.data.success) {
+        
+        const data = await this.apiRequest(url, {
+          method,
+          body: JSON.stringify(this.variantForm)
+        })
+        
+        if (data.success) {
           this.showSnackbar(`Variant ${this.editingVariant ? 'updated' : 'created'} successfully`, '#E53935')
           this.variantDialog = false
           this.fetchVariants()
         }
       } catch (error) {
-        this.showSnackbar(error.response?.data?.error || 'Failed to save variant', 'error')
+        this.showSnackbar(error.message || 'Failed to save variant', 'error')
       } finally {
         this.saving = false
       }
@@ -1600,8 +1659,8 @@ export default {
     async fetchOrders() {
       this.loadingOrders = true
       try {
-        const params = this.statusFilter && this.statusFilter !== 'All' ? { status: this.statusFilter } : {}
-        const { data } = await this.$axios.get('/api/admin/orders', { params })
+        const params = this.statusFilter && this.statusFilter !== 'All' ? `?status=${this.statusFilter}` : ''
+        const data = await this.apiRequest(`/api/admin/orders${params}`)
         if (data.success) {
           this.adminOrders = data.data || []
         }
@@ -1616,7 +1675,7 @@ export default {
 
     async viewOrderDetails(order) {
       try {
-        const { data } = await this.$axios.get(`/api/admin/orders/${order.id}`)
+        const data = await this.apiRequest(`/api/admin/orders/${order.id}`)
         if (data.success) {
           this.selectedOrder = data.data
           this.orderDetailDialog = true
@@ -1629,13 +1688,16 @@ export default {
 
     async updateOrderStatus(order, status) {
       try {
-        const { data } = await this.$axios.put(`/api/admin/orders/${order.id}/status`, { status })
+        const data = await this.apiRequest(`/api/admin/orders/${order.id}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status })
+        })
         if (data.success) {
           this.showSnackbar(`Order status updated to ${status}`, '#E53935')
           this.fetchOrders()
         }
       } catch (error) {
-        this.showSnackbar(error.response?.data?.error || 'Failed to update status', 'error')
+        this.showSnackbar(error.message || 'Failed to update status', 'error')
       }
     },
 
@@ -1643,17 +1705,17 @@ export default {
     async fetchReports() {
       this.loadingReports = true
       try {
-        const params = { from: this.dateFrom || '2024-01-01', to: this.dateTo || '2030-12-31' }
-
-        const [sales, topProducts, categories] = await Promise.all([
-          this.$axios.get('/api/admin/reports/sales', { params }),
-          this.$axios.get('/api/admin/reports/top-products', { params: { ...params, limit: 10 } }),
-          this.$axios.get('/api/admin/reports/category-performance', { params })
+        const params = `?from=${this.dateFrom || '2024-01-01'}&to=${this.dateTo || '2030-12-31'}`
+        
+        const [salesData, topProductsData, categoriesData] = await Promise.all([
+          this.apiRequest(`/api/admin/reports/sales${params}`),
+          this.apiRequest(`/api/admin/reports/top-products${params}&limit=10`),
+          this.apiRequest(`/api/admin/reports/category-performance${params}`)
         ])
 
-        if (sales.data.success) this.salesReport = sales.data.data || []
-        if (topProducts.data.success) this.topProducts = topProducts.data.data || []
-        if (categories.data.success) this.categoryPerformance = categories.data.data || []
+        if (salesData.success) this.salesReport = salesData.data || []
+        if (topProductsData.success) this.topProducts = topProductsData.data || []
+        if (categoriesData.success) this.categoryPerformance = categoriesData.data || []
       } catch (error) {
         console.error('Error fetching reports:', error)
         this.salesReport = []
@@ -1681,49 +1743,47 @@ export default {
 </script>
 
 <style scoped>
-.admin-wrapper {
-  background: #f8f9fa;
-}
 
-/* Sidebar */
+/* ========== SIDEBAR (Desktop) ========== */
 .sidebar-col {
   position: relative;
 }
 .sidebar-card {
   border-radius: 12px !important;
   position: sticky;
-  top: 24px;
+  top: 8px;
   background: white;
   border: 1px solid #e0e0e0;
-  padding: 20px 12px;
-  min-height: calc(100vh - 48px);
+  padding: 16px 10px;
+  min-height: calc(100vh - 16px);
   display: flex;
   flex-direction: column;
 }
 .brand-section {
   display: flex;
   align-items: center;
-  padding: 0 8px;
-  margin-bottom: 8px;
+  padding: 0 6px;
+  margin-bottom: 6px;
 }
 .brand-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   background: #0f0f0f;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 12px;
+  margin-right: 10px;
+  flex-shrink: 0;
 }
 .brand-title {
   font-weight: 800;
-  font-size: 1.1rem;
+  font-size: 1rem;
   line-height: 1.2;
   color: #0f0f0f;
 }
 .brand-subtitle {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #999;
   font-weight: 500;
 }
@@ -1732,8 +1792,9 @@ export default {
 }
 .nav-item {
   border-radius: 8px !important;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   transition: all 0.2s ease;
+  min-height: 40px !important;
 }
 .nav-item:hover {
   background: #f5f5f5;
@@ -1746,21 +1807,21 @@ export default {
   font-weight: 600 !important;
 }
 .nav-title {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: #555;
 }
 .sidebar-footer {
-  padding: 16px 0 8px;
+  padding: 12px 0 4px;
 }
 
-/* Mobile Header */
+/* ========== MOBILE HEADER ========== */
 .mobile-header {
   z-index: 1000 !important;
 }
 .brand-icon-small {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
   background: #0f0f0f;
   display: flex;
@@ -1769,11 +1830,11 @@ export default {
 }
 .brand-title-small {
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: #0f0f0f;
 }
 
-/* Mobile Drawer */
+/* ========== MOBILE DRAWER ========== */
 .mobile-drawer {
   padding-top: 0 !important;
 }
@@ -1781,47 +1842,49 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 18px;
   background: #0f0f0f;
   color: white;
 }
 .drawer-list {
-  padding: 8px 0;
+  padding: 6px 0;
 }
 .drawer-footer {
-  padding: 16px 20px;
+  padding: 14px 18px;
   border-top: 1px solid #e8e8e8;
   margin-top: auto;
 }
 
-/* Mobile Tabs */
+/* ========== MOBILE TABS ========== */
 .mobile-tabs {
   background: white;
-  border-radius: 8px;
-  padding: 4px 0;
+  border-radius: 10px;
+  padding: 6px 4px;
   border: 1px solid #e8e8e8;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .mobile-tabs ::-webkit-scrollbar {
   height: 0;
   background: transparent;
 }
 .v-slide-group {
-  padding: 4px 8px;
+  padding: 2px 4px;
 }
 .v-slide-group .v-slide-group__prev,
 .v-slide-group .v-slide-group__next {
-  min-width: 24px !important;
+  min-width: 28px !important;
 }
 .tab-btn {
-  font-size: 0.7rem !important;
+  font-size: 0.72rem !important;
   text-transform: none !important;
-  letter-spacing: 0.3px !important;
+  letter-spacing: 0.2px !important;
   color: #666 !important;
   min-width: auto !important;
-  padding: 4px 10px !important;
-  border-radius: 6px !important;
+  padding: 6px 12px !important;
+  border-radius: 8px !important;
   transition: all 0.2s ease !important;
+  height: 36px !important;
 }
 .tab-btn .tab-label {
   font-weight: 500;
@@ -1834,34 +1897,34 @@ export default {
   background: #f5f5f5 !important;
 }
 
-/* Headers */
+/* ========== SECTION HEADERS ========== */
 .section-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 0px;
+  gap: 12px;
 }
 .section-title {
-  font-size: 1.75rem;
+  font-size: 1.6rem;
   font-weight: 800;
   color: #0f0f0f;
   line-height: 1.2;
   margin-bottom: 4px;
 }
 .section-subtitle {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #888;
   margin: 0;
 }
 
-/* Stats */
+/* ========== STATS CARDS ========== */
 .stats-row {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .stat-card {
   border-radius: 12px !important;
-  padding: 16px;
+  padding: 14px;
   display: flex;
   align-items: center;
   background: white;
@@ -1873,24 +1936,26 @@ export default {
   box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 }
 .stat-icon-wrapper {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 14px;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 .stat-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #888;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
   margin-bottom: 4px;
+  white-space: nowrap;
 }
 .stat-value {
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 800;
   color: #0f0f0f;
   line-height: 1;
@@ -1899,7 +1964,7 @@ export default {
   font-size: 1rem !important;
 }
 
-/* Cards */
+/* ========== CONTENT CARDS ========== */
 .content-card {
   border-radius: 12px !important;
   background: white;
@@ -1910,29 +1975,33 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 18px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .card-header-title {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: #0f0f0f;
 }
 
-/* Tables */
+/* ========== TABLES ========== */
 .table-wrapper {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .data-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  min-width: 100%;
 }
 .data-table th {
   text-align: left;
-  padding: 12px 20px;
-  font-size: 0.7rem;
+  padding: 10px 16px;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   font-weight: 700;
   color: #888;
   background: #fafafa;
@@ -1940,9 +2009,9 @@ export default {
   white-space: nowrap;
 }
 .data-table td {
-  padding: 14px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: #333;
   vertical-align: middle;
 }
@@ -1954,21 +2023,22 @@ export default {
 }
 .data-table.compact td,
 .data-table.compact th {
-  padding: 10px 16px;
+  padding: 8px 12px;
 }
 
-/* Tags & Chips */
-.sku-tag, .slug-tag {
+/* ========== TAGS & CHIPS ========== */
+.sku-tag,
+.slug-tag {
   background: #f5f5f5;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-family: monospace;
   color: #666;
 }
 .status-chip {
   font-weight: 600 !important;
-  font-size: 0.7rem !important;
+  font-size: 0.68rem !important;
   letter-spacing: 0.3px;
 }
 .color-dot {
@@ -1976,7 +2046,8 @@ export default {
   height: 14px;
   border-radius: 50%;
   display: inline-block;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
 }
 .stock-alert {
   color: #E53935;
@@ -1984,7 +2055,8 @@ export default {
   background: #ffebee;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 .rank-badge {
   width: 22px;
@@ -1997,40 +2069,42 @@ export default {
   font-size: 0.7rem;
   font-weight: 700;
   color: #666;
+  flex-shrink: 0;
 }
 .rank-badge.top-three {
   background: #E53935;
   color: white;
 }
 
-/* Product images */
-.product-thumb, .variant-thumb {
+/* ========== PRODUCT IMAGES ========== */
+.product-thumb,
+.variant-thumb {
   border-radius: 6px;
   background: #f5f5f5;
 }
 
-/* Empty States */
+/* ========== EMPTY STATES ========== */
 .empty-state {
   text-align: center;
-  padding: 48px 20px;
+  padding: 40px 16px;
   color: #999;
 }
 .empty-state.small {
-  padding: 24px 20px;
+  padding: 20px 16px;
 }
 .empty-title {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: #666;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 .empty-text {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #999;
   margin-top: 4px;
 }
 
-/* Dialogs */
+/* ========== DIALOGS ========== */
 .dialog-card {
   border-radius: 12px !important;
   overflow: hidden;
@@ -2038,14 +2112,14 @@ export default {
 .dialog-header {
   background: #0f0f0f;
   color: white;
-  padding: 16px 24px;
+  padding: 14px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .dialog-title {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 .image-preview {
   background: #f8f9fa;
@@ -2066,18 +2140,18 @@ export default {
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-/* Form fields */
+/* ========== FORM FIELDS ========== */
 .compact-field ::v-deep .v-input__slot {
   border-radius: 8px !important;
 }
 .compact-field ::v-deep .v-label {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
 }
 
-/* Animations */
+/* ========== ANIMATIONS ========== */
 .fade-in {
   animation: fadeIn 0.3s ease-in-out;
 }
@@ -2086,9 +2160,9 @@ export default {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Detail view */
+/* ========== DETAIL VIEW ========== */
 .detail-label {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: #999;
@@ -2096,86 +2170,178 @@ export default {
   margin-bottom: 4px;
 }
 .detail-value {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: #0f0f0f;
 }
 .detail-total {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   font-weight: 800;
   color: #E53935;
 }
 .order-totals {
   background: #fafafa;
   border-radius: 8px;
-  padding: 12px 0;
+  padding: 10px 0;
 }
 
-/* Snackbar */
+/* ========== SNACKBAR ========== */
 .snackbar-custom {
   border-radius: 8px !important;
 }
 
-/* Mobile responsive */
-@media (max-width: 600px) {
-  .data-table td,
-  .data-table th {
-    padding: 8px 10px !important;
-    font-size: 0.75rem !important;
-  }
-  .data-table .font-weight-medium {
-    font-size: 0.75rem !important;
+/* ============================================================
+   RESPONSIVE BREAKPOINTS
+   ============================================================ */
+
+/* ---------- Mobile: 0 - 599px ---------- */
+@media (max-width: 599px) {
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
   .section-title {
-    font-size: 1.3rem !important;
+    font-size: 1.25rem !important;
   }
   .section-subtitle {
     font-size: 0.75rem !important;
   }
+
   .stat-card {
-    padding: 10px !important;
+    padding: 10px 8px !important;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
   }
   .stat-icon-wrapper {
     width: 32px;
     height: 32px;
-    margin-right: 8px !important;
+    margin-right: 0 !important;
   }
   .stat-value {
-    font-size: 1rem !important;
+    font-size: 1.1rem !important;
   }
   .stat-label {
     font-size: 0.6rem !important;
   }
+
   .card-header {
-    padding: 12px 14px !important;
+    padding: 10px 12px !important;
   }
   .card-header-title {
-    font-size: 0.8rem !important;
+    font-size: 0.82rem !important;
   }
+
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px !important;
+    font-size: 0.72rem !important;
+  }
+  .data-table .font-weight-medium {
+    font-size: 0.72rem !important;
+  }
+
   .empty-state {
-    padding: 24px 16px !important;
+    padding: 24px 12px !important;
   }
-  .dialog-card .pa-6 {
-    padding: 16px !important;
+  .empty-title {
+    font-size: 0.9rem !important;
   }
+
+  .dialog-header {
+    padding: 12px 16px !important;
+  }
+  .dialog-title {
+    font-size: 0.9rem !important;
+  }
+
   .switch-group {
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
   }
   .switch-group .v-switch {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
     margin-right: 0 !important;
   }
+
+  .order-totals {
+    padding: 8px 0 !important;
+  }
   .order-totals .col-4 {
-    padding: 0 8px;
+    padding: 0 6px;
   }
   .order-totals .detail-value {
-    font-size: 0.8rem !important;
+    font-size: 0.78rem !important;
+  }
+  .detail-total {
+    font-size: 1rem !important;
   }
 }
 
-@media (max-width: 960px) {
+/* ---------- Tablet: 600px - 959px ---------- */
+@media (min-width: 600px) and (max-width: 959px) {
+  .section-title {
+    font-size: 1.5rem !important;
+  }
+  .stat-card {
+    padding: 12px !important;
+  }
+  .stat-icon-wrapper {
+    width: 38px;
+    height: 38px;
+    margin-right: 10px !important;
+  }
+  .stat-value {
+    font-size: 1.15rem !important;
+  }
   .sidebar-col {
     display: none;
+  }
+}
+
+/* ---------- Small Desktop: 960px - 1263px ---------- */
+@media (min-width: 960px) and (max-width: 1263px) {
+  .sidebar-card {
+    padding: 14px 8px;
+  }
+  .brand-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .brand-title {
+    font-size: 0.9rem;
+  }
+  .nav-title {
+    font-size: 0.75rem;
+  }
+  .stat-value {
+    font-size: 1.15rem !important;
+  }
+}
+
+/* ---------- Hide sidebar on mobile/tablet ---------- */
+@media (max-width: 959px) {
+  .sidebar-col {
+    display: none;
+  }
+}
+
+/* ---------- Touch-friendly improvements ---------- */
+@media (hover: none) and (pointer: coarse) {
+  .nav-item {
+    min-height: 48px !important;
+  }
+  .tab-btn {
+    min-height: 40px !important;
+  }
+  .data-table tbody tr:hover {
+    background: transparent;
+  }
+  .stat-card:hover {
+    transform: none;
+    box-shadow: none;
   }
 }
 </style>
