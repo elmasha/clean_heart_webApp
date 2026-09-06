@@ -110,10 +110,6 @@
                 </v-list-item-title>
               </v-list-item>
             </v-list>
-
-            <!-- <div class="sidebar-footer">
-              <div class="text-caption text-center grey--text">v2.0 &mdash; {{ currentYear }}</div>
-            </div> -->
           </v-card>
         </v-col>
 
@@ -190,6 +186,73 @@
                     <div class="stat-content">
                       <div class="stat-label">{{ stat.label }}</div>
                       <div class="stat-value" :class="{ 'stat-value-sm': $vuetify.breakpoint.smAndDown }">{{ stat.value }}</div>
+                    </div>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Rider Stats Row -->
+              <v-row class="mt-2">
+                <v-col cols="12" sm="6" lg="3">
+                  <v-card class="content-card" flat>
+                    <div class="card-header">
+                      <div class="d-flex align-center">
+                        <v-icon size="18" color="#E53935" class="mr-2">mdi-motorbike</v-icon>
+                        <span class="card-header-title">Active Riders</span>
+                      </div>
+                    </div>
+                    <v-divider />
+                    <div class="pa-4 text-center">
+                      <div class="display-1 font-weight-bold">{{ riderStats.active || 0 }}</div>
+                      <div class="caption grey--text">Available for deliveries</div>
+                    </div>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" lg="3">
+                  <v-card class="content-card" flat>
+                    <div class="card-header">
+                      <div class="d-flex align-center">
+                        <v-icon size="18" color="#E53935" class="mr-2">mdi-truck-delivery</v-icon>
+                        <span class="card-header-title">Today's Deliveries</span>
+                      </div>
+                    </div>
+                    <v-divider />
+                    <div class="pa-4 text-center">
+                      <div class="display-1 font-weight-bold">{{ riderStats.today_deliveries || 0 }}</div>
+                      <div class="caption grey--text">Completed today</div>
+                    </div>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" lg="3">
+                  <v-card class="content-card" flat>
+                    <div class="card-header">
+                      <div class="d-flex align-center">
+                        <v-icon size="18" color="#E53935" class="mr-2">mdi-clock</v-icon>
+                        <span class="card-header-title">Pending Assignments</span>
+                      </div>
+                    </div>
+                    <v-divider />
+                    <div class="pa-4 text-center">
+                      <div class="display-1 font-weight-bold">{{ riderStats.pending_assignments || 0 }}</div>
+                      <div class="caption grey--text">Awaiting rider assignment</div>
+                    </div>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" lg="3">
+                  <v-card class="content-card" flat>
+                    <div class="card-header">
+                      <div class="d-flex align-center">
+                        <v-icon size="18" color="#E53935" class="mr-2">mdi-currency-ksh</v-icon>
+                        <span class="card-header-title">Rider Earnings</span>
+                      </div>
+                    </div>
+                    <v-divider />
+                    <div class="pa-4 text-center">
+                      <div class="display-1 font-weight-bold">Ksh {{ formatMoney(riderStats.total_earnings || 0) }}</div>
+                      <div class="caption grey--text">Total rider earnings</div>
                     </div>
                   </v-card>
                 </v-col>
@@ -731,6 +794,102 @@
             </div>
           </template>
 
+          <!-- Riders Section -->
+          <template v-if="activeSection === 'riders'">
+            <div class="fade-in">
+              <div class="section-header mb-4 mb-md-6">
+                <div>
+                  <h1 class="section-title">Riders</h1>
+                  <p class="section-subtitle">Manage your delivery riders</p>
+                </div>
+                <div class="d-flex" style="gap: 8px;" :style="{ flexDirection: $vuetify.breakpoint.smAndDown ? 'column' : 'row' }">
+                  <v-btn color="#0f0f0f" dark depressed class="action-btn" @click="openRiderDialog()" block v-if="$vuetify.breakpoint.smAndDown">
+                    <v-icon left size="16">mdi-plus</v-icon>
+                    Add Rider
+                  </v-btn>
+                  <v-btn color="#0f0f0f" dark depressed class="action-btn" @click="openRiderDialog()" v-else>
+                    <v-icon left size="16">mdi-plus</v-icon>
+                    Add Rider
+                  </v-btn>
+                </div>
+              </div>
+
+              <v-card class="content-card" flat>
+                <div v-if="loadingRiders" class="d-flex justify-center pa-8">
+                  <v-progress-circular indeterminate color="#E53935" size="40" />
+                </div>
+                <div v-else-if="riders.length === 0" class="empty-state pa-8">
+                  <v-icon size="56" color="grey lighten-2">mdi-motorbike</v-icon>
+                  <div class="empty-title">No Riders Found</div>
+                  <div class="empty-text">Click "Add Rider" to register your first delivery rider</div>
+                </div>
+                <div v-else class="table-wrapper">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Rider</th>
+                        <th>Contact</th>
+                        <th>Vehicle</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Rating</th>
+                        <th class="text-center">Deliveries</th>
+                        <th class="text-center" style="width: 120px;">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="rider in riders" :key="rider.id">
+                        <td>
+                          <div class="d-flex align-center">
+                            <v-avatar size="32" color="#fce4ec" class="mr-2">
+                              <v-icon size="16" color="#E53935">mdi-account</v-icon>
+                            </v-avatar>
+                            <div>
+                              <div class="font-weight-medium">{{ rider.full_name }}</div>
+                              <div class="text-caption grey--text" v-if="rider.id_number">ID: {{ rider.id_number }}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div>{{ rider.phone }}</div>
+                          <div class="text-caption grey--text">{{ rider.email }}</div>
+                        </td>
+                        <td>
+                          <v-chip x-small outlined color="grey darken-1">
+                            {{ rider.vehicle_type }}
+                          </v-chip>
+                          <div class="text-caption grey--text" v-if="rider.vehicle_registration">{{ rider.vehicle_registration }}</div>
+                        </td>
+                        <td class="text-center">
+                          <v-chip x-small label :color="getRiderStatusColor(rider.status)" text-color="white" class="status-chip">
+                            {{ rider.status }}
+                          </v-chip>
+                        </td>
+                        <td class="text-center">
+                          <div class="d-flex align-center justify-center">
+                            <v-icon small color="#ff9800" class="mr-1">mdi-star</v-icon>
+                            <span>{{ rider.rating || 0 }}</span>
+                          </div>
+                        </td>
+                        <td class="text-center">
+                          <div>{{ rider.total_deliveries || 0 }}</div>
+                          <div class="text-caption grey--text">Ksh {{ formatMoney(rider.total_earnings || 0) }}</div>
+                        </td>
+                        <td class="text-center">
+                          <v-btn icon x-small color="primary" class="mr-1" @click="openRiderDialog(rider)">
+                            <v-icon size="16">mdi-pencil</v-icon>
+                          </v-btn>
+                          <v-btn icon x-small color="error" @click="confirmDelete('rider', rider)">
+                            <v-icon size="16">mdi-delete</v-icon>
+                          </v-btn>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </v-card>
+            </div>
+          </template>
+
           <!-- Reports -->
           <template v-if="activeSection === 'reports'">
             <div class="fade-in">
@@ -890,6 +1049,39 @@
         </v-col>
       </v-row>
     </v-container>
+
+    <!-- Rider Dialog -->
+    <v-dialog v-model="riderDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 500" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
+      <v-card class="dialog-card" flat>
+        <div class="dialog-header">
+          <span class="dialog-title">{{ editingRider ? 'Edit Rider' : 'Add Rider' }}</span>
+          <v-btn icon small dark @click="riderDialog = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </div>
+        <v-divider />
+        <v-card-text class="pa-4 pa-md-6">
+          <v-form ref="riderForm" @submit.prevent="saveRider">
+            <v-text-field v-model="riderForm.full_name" label="Full Name *" outlined dense hide-details required />
+            <v-text-field v-model="riderForm.email" label="Email" outlined dense hide-details class="mt-4" type="email" />
+            <v-text-field v-model="riderForm.phone" label="Phone *" outlined dense hide-details class="mt-4" required />
+            <v-text-field v-model="riderForm.id_number" label="ID Number" outlined dense hide-details class="mt-4" />
+            <v-select v-model="riderForm.vehicle_type" :items="['boda', 'bicycle', 'car', 'van']" label="Vehicle Type" outlined dense hide-details class="mt-4" />
+            <v-text-field v-model="riderForm.vehicle_registration" label="Vehicle Registration" outlined dense hide-details class="mt-4" />
+            <v-select v-model="riderForm.status" :items="['active', 'inactive', 'offline']" label="Status" outlined dense hide-details class="mt-4" />
+            <v-switch v-model="riderForm.is_verified" label="Verified" color="#E53935" hide-details class="mt-4" />
+          </v-form>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions class="pa-3 pa-md-4">
+          <v-spacer />
+          <v-btn text class="mr-2" @click="riderDialog = false">Cancel</v-btn>
+          <v-btn color="#0f0f0f" dark depressed :loading="saving" @click="saveRider">
+            {{ editingRider ? 'Update Rider' : 'Create Rider' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- Product Dialog -->
     <v-dialog v-model="productDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 650" :fullscreen="$vuetify.breakpoint.smAndDown" persistent scrollable>
@@ -1179,6 +1371,7 @@ export default {
       loadingVariants: false,
       loadingOrders: false,
       loadingReports: false,
+      loadingRiders: false,
       saving: false,
       savingDelivery: false,
 
@@ -1189,6 +1382,12 @@ export default {
         { label: 'Total Products', value: 0, icon: 'mdi-package-variant', bg: '#e3f2fd', iconColor: '#1976d2' },
         { label: 'Total Customers', value: 0, icon: 'mdi-account-group', bg: '#fce4ec', iconColor: '#c2185b' },
       ],
+      riderStats: {
+        active: 0,
+        today_deliveries: 0,
+        pending_assignments: 0,
+        total_earnings: 0,
+      },
       lowStock: [],
       recentOrders: [],
       deliverySettings: { free_delivery_threshold: 7500, delivery_fee: 500, is_active: true },
@@ -1238,6 +1437,21 @@ export default {
         is_active: true 
       },
 
+      // Riders
+      riders: [],
+      riderDialog: false,
+      editingRider: null,
+      riderForm: {
+        full_name: '',
+        email: '',
+        phone: '',
+        id_number: '',
+        vehicle_type: 'boda',
+        vehicle_registration: '',
+        status: 'active',
+        is_verified: true,
+      },
+
       // Orders
       adminOrders: [],
       statusFilter: '',
@@ -1268,6 +1482,7 @@ export default {
         { id: 'categories', title: 'Categories', icon: 'mdi-view-list' },
         { id: 'variants', title: 'Variants', icon: 'mdi-palette' },
         { id: 'orders', title: 'Orders', icon: 'mdi-package-variant' },
+        { id: 'riders', title: 'Riders', icon: 'mdi-motorbike' },
         { id: 'reports', title: 'Reports', icon: 'mdi-chart-bar' },
       ],
 
@@ -1285,6 +1500,7 @@ export default {
     this.fetchCategories()
     this.fetchOrders()
     this.fetchReports()
+    this.fetchRiders()
 
     const today = new Date()
     const thirtyDaysAgo = new Date()
@@ -1357,11 +1573,95 @@ export default {
       this.searchDebounce = setTimeout(() => this.fetchProducts(), 300)
     },
 
-    // Delete Confirmation
+    getRiderStatusColor(status) {
+      const colors = {
+        active: 'success',
+        inactive: 'error',
+        offline: 'warning',
+        busy: 'orange'
+      }
+      return colors[status] || 'grey'
+    },
+
+    // ===== RIDERS =====
+    async fetchRiders() {
+      this.loadingRiders = true
+      try {
+        const data = await this.apiRequest('/api/admin/riders')
+        if (data.success) {
+          this.riders = data.data || []
+        }
+      } catch (error) {
+        console.error('Error fetching riders:', error)
+        this.riders = []
+        this.showSnackbar('Failed to load riders', 'error')
+      } finally {
+        this.loadingRiders = false
+      }
+    },
+
+    openRiderDialog(rider = null) {
+      this.editingRider = rider
+      if (rider) {
+        this.riderForm = { ...rider }
+      } else {
+        this.riderForm = {
+          full_name: '',
+          email: '',
+          phone: '',
+          id_number: '',
+          vehicle_type: 'boda',
+          vehicle_registration: '',
+          status: 'active',
+          is_verified: true,
+        }
+      }
+      this.riderDialog = true
+    },
+
+    async saveRider() {
+      if (!this.riderForm.full_name || !this.riderForm.phone) {
+        this.showSnackbar('Name and phone are required', 'error')
+        return
+      }
+      this.saving = true
+      try {
+        let url = '/api/admin/riders'
+        let method = 'POST'
+        
+        if (this.editingRider) {
+          url = `/api/admin/riders/${this.editingRider.id}`
+          method = 'PUT'
+        }
+        
+        const data = await this.apiRequest(url, {
+          method,
+          body: JSON.stringify(this.riderForm)
+        })
+        
+        if (data.success) {
+          this.showSnackbar(`Rider ${this.editingRider ? 'updated' : 'created'} successfully`, '#E53935')
+          this.riderDialog = false
+          this.fetchRiders()
+          this.fetchDashboardData()
+        }
+      } catch (error) {
+        this.showSnackbar(error.message || 'Failed to save rider', 'error')
+      } finally {
+        this.saving = false
+      }
+    },
+
+    // ===== Delete =====
     confirmDelete(type, item) {
       this.deleteType = type
       this.deleteTarget = item
-      const names = { product: item.name, category: item.name, variant: item.sku }
+      const names = { 
+        product: item.name, 
+        category: item.name, 
+        variant: item.sku,
+        rider: item.full_name,
+      }
       this.deleteMessage = `Are you sure you want to delete "${names[type]}"? This action cannot be undone.`
       this.deleteDialog = true
     },
@@ -1381,6 +1681,8 @@ export default {
           url = `/api/admin/categories/${this.deleteTarget.id}`
         } else if (this.deleteType === 'variant') {
           url = `/api/admin/variants/${this.deleteTarget.id}`
+        } else if (this.deleteType === 'rider') {
+          url = `/api/admin/riders/${this.deleteTarget.id}`
         }
         
         const data = await this.apiRequest(url, { method: 'DELETE' })
@@ -1390,6 +1692,10 @@ export default {
           if (this.deleteType === 'product') this.fetchProducts()
           else if (this.deleteType === 'category') this.fetchCategories()
           else if (this.deleteType === 'variant') this.fetchVariants()
+          else if (this.deleteType === 'rider') {
+            this.fetchRiders()
+            this.fetchDashboardData()
+          }
         }
         this.deleteDialog = false
       } catch (error) {
@@ -1412,6 +1718,7 @@ export default {
             { label: 'Total Products', value: d.totals?.products || 0, icon: 'mdi-package-variant', bg: '#e3f2fd', iconColor: '#1976d2' },
             { label: 'Total Customers', value: d.totals?.users || 0, icon: 'mdi-account-group', bg: '#fce4ec', iconColor: '#c2185b' },
           ]
+          this.riderStats = d.riders || { active: 0, today_deliveries: 0, pending_assignments: 0, total_earnings: 0 }
           this.lowStock = d.lowStock || []
           this.recentOrders = d.recentOrders || []
           if (d.deliverySettings) {

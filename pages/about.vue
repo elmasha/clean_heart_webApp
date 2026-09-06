@@ -22,7 +22,11 @@
               style="width: 300px; height: 300px; border-radius: 50%; background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%); border: 2px solid #E53935;"
             >
               <div class="text-center">
-                <v-icon color="#E53935" size="80">mdi-heart</v-icon>
+                  <v-avatar
+                      color="primary"
+                      size="80"> 
+                      <v-img :src="logo"></v-img>
+                    </v-avatar>
                 <div class="mt-2" style="font-size: 1.2rem; font-weight: 900; color: #fff; letter-spacing: 3px; text-transform: uppercase;">CLEAN HEART</div>
               </div>
             </div>
@@ -85,6 +89,8 @@
                 class="d-flex flex-column justify-end pa-6"
                 style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400'); background-size: cover; background-position: center; min-height: 300px; position: relative; overflow: hidden;"
               >
+
+              
                 <div style="position: relative; z-index: 2;">
                   <div style="font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 4px;">{{ cat.name }}</div>
                   <div style="font-size: 0.75rem; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 1px;">{{ cat.count }} products</div>
@@ -163,10 +169,15 @@
 </template>
 
 <script>
+
+import logo from '@/assets/logo.jpg'
+
+
 export default {
   name: 'AboutPage',
   data() {
     return {
+      logo,
       values: [
         { title: 'Authenticity', icon: 'mdi-heart', description: "We keep it real. No gimmicks, no fake hype. Just quality streetwear that speaks for itself." },
         { title: 'Community', icon: 'mdi-account-group', description: "Clean Heart is more than a brand — it's a family. We build connections, not just customers." },

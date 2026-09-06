@@ -99,6 +99,19 @@
                 />
               </v-col>
             </v-row>
+
+            <!-- Delivery Notes -->
+            <v-textarea
+              v-model="deliveryNotes"
+              label="Delivery Notes (Optional)"
+              outlined
+              dense
+              hide-details
+              class="mt-4"
+              style="border-radius: 0;"
+              placeholder="Any special instructions for the rider..."
+              rows="2"
+            />
           </div>
 
           <!-- Payment -->
@@ -172,7 +185,7 @@
                 <div>
                   <div style="font-weight: 600; font-size: 0.9rem; color: #000;">Cash on Delivery</div>
                   <p class="mt-1 mb-0" style="font-size: 0.75rem; color: #666;">
-                    Pay when you receive your order. No advance payment required.
+                    Pay when you receive your order. A rider will deliver your items.
                   </p>
                 </div>
               </div>
@@ -223,9 +236,9 @@
               <span style="font-size: 0.85rem; font-weight: 600;">Ksh {{ formatPrice(cartTotal) }}</span>
             </div>
             <div class="d-flex justify-space-between mb-2">
-              <span style="font-size: 0.85rem; color: #666;">Shipping</span>
+              <span style="font-size: 0.85rem; color: #666;">Delivery</span>
               <span style="font-size: 0.85rem; font-weight: 600;">
-                {{ shippingCost > 0 ? 'Ksh ' + formatPrice(shippingCost) : 'Free' }}
+                {{ deliveryFee > 0 ? 'Ksh ' + formatPrice(deliveryFee) : 'Free' }}
               </span>
             </div>
             <div class="d-flex justify-space-between mb-2">
@@ -263,7 +276,7 @@
     </v-container>
 
     <!-- RESULT DIALOG -->
-    <v-dialog v-model="resultDialog" max-width="420" persistent>
+    <v-dialog v-model="resultDialog" max-width="450" persistent>
       <v-card class="cinematic-card text-center pa-6">
         <v-scale-transition>
           <div>
@@ -275,7 +288,25 @@
               {{ resultDetails }}
             </v-alert>
 
-            <div class="d-flex gap-2 mt-5">
+            <!-- Rider Info (if assigned) -->
+            <div v-if="assignedRider" class="rider-info mt-4">
+              <v-divider class="my-3" />
+              <div class="d-flex align-center" style="gap: 12px;">
+                <v-avatar size="48" color="#E53935">
+                  <v-icon color="white" size="24">mdi-motorbike</v-icon>
+                </v-avatar>
+                <div class="text-left">
+                  <div style="font-weight: 700; font-size: 0.9rem;">{{ assignedRider.name }}</div>
+                  <div style="font-size: 0.8rem; color: #666;">{{ assignedRider.vehicle }} · {{ assignedRider.phone }}</div>
+                  <div style="font-size: 0.75rem; color: #E53935;">
+                    <v-icon x-small color="#E53935">mdi-clock-outline</v-icon>
+                    Estimated delivery: {{ estimatedDelivery }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2 mt-5" style="gap: 12px;">
               <v-btn v-if="isSuccess" block class="pay-btn" @click="goToOrderConfirmation">
                 <v-icon left>mdi-check</v-icon>
                 View Order
@@ -312,6 +343,7 @@ export default {
         city: '',
         postalCode: '',
       },
+      deliveryNotes: '',
       paymentMethod: 'cod',
       card: { 
         number: '', 
@@ -333,6 +365,8 @@ export default {
       
       paymentOrderId: null,
       paymentOrderNumber: '',
+      assignedRider: null,
+      estimatedDelivery: '',
     }
   },
   computed: {
@@ -344,7 +378,7 @@ export default {
     cartTotal() {
       return this.getCartTotal || 0
     },
-    shippingCost() {
+    deliveryFee() {
       const total = this.cartTotal
       if (total >= 7500) {
         return 0
@@ -355,7 +389,7 @@ export default {
       return this.cartTotal * 0.16
     },
     orderTotal() {
-      return this.cartTotal + this.shippingCost + this.tax
+      return this.cartTotal + this.deliveryFee + this.tax
     },
     firebaseUid() {
       return this.authUser?.uid || null
@@ -490,7 +524,7 @@ export default {
       this.resultIconColor = cfg.color;
 
       if (type === 'success') {
-        this.resultDetails = `Your order #${this.paymentOrderNumber} has been placed. You will pay on delivery.`;
+        this.resultDetails = `Order #${this.paymentOrderNumber} has been placed. You will pay Ksh ${this.formatPrice(this.orderTotal)} on delivery.`;
       } else {
         this.resultDetails = '';
       }
@@ -524,6 +558,7 @@ export default {
           shipping_address: this.shipping,
           billing_address: this.shipping,
           payment_method: this.paymentMethod,
+          delivery_notes: this.deliveryNotes,
           items: this.cartItems.map(item => ({
             variant_id: item.variantId || item.variant?.id || item.variant_id,
             product_id: item.product_id || item.product?.id,
@@ -533,7 +568,7 @@ export default {
             variant: this.getVariantDisplay(item)
           })),
           subtotal: this.cartTotal,
-          shipping_cost: this.shippingCost,
+          shipping_cost: this.deliveryFee,
           tax_amount: this.tax,
           total_amount: this.orderTotal,
         }
@@ -546,9 +581,14 @@ export default {
           this.paymentOrderId = data.data.orderId
           this.paymentOrderNumber = data.data.orderNumber
           
+          if (data.data.assigned_rider) {
+            this.assignedRider = data.data.assigned_rider
+            this.estimatedDelivery = data.data.estimated_delivery || '1 hour'
+          }
+          
           this.showResult(
             'Order Placed Successfully! 🎉',
-            `Your order #${this.paymentOrderNumber} has been placed. You will pay Ksh ${this.formatPrice(this.orderTotal)} on delivery.`,
+            `Your order #${this.paymentOrderNumber} has been placed. ${data.data.assigned_rider ? 'A rider has been assigned to your delivery.' : 'We will assign a rider shortly.'}`,
             'success'
           )
           
@@ -625,4 +665,10 @@ export default {
 .error-text { color: #C62828; }
 .warning-text { color: #F26522; }
 .result-message { opacity: 0.85; line-height: 1.5; color: #666; }
+
+.rider-info {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
 </style>

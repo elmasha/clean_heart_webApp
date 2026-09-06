@@ -22,8 +22,11 @@
               class="d-flex align-center justify-center mr-2"
               style="width: 32px; height: 32px; border-radius: 50%; background: #000;"
             >
-              <v-icon color="#E53935" size="18">mdi-heart</v-icon>
-              
+      <v-avatar
+      color="primary"
+      size="30"> 
+      <v-img :src="logo"></v-img>
+    </v-avatar>
             </div>
             <span
               style="font-size: 1.1rem; font-weight: 900; letter-spacing: 3px; color: #000; text-transform: uppercase;"
@@ -41,7 +44,11 @@
             class="d-flex align-center justify-center"
             style="width: 32px; height: 32px; border-radius: 50%; background: #000;"
           >
-            <v-icon color="#E53935" size="18">mdi-heart</v-icon>
+             <v-avatar
+      color="primary"
+      size="30"> 
+      <v-img :src="logo"></v-img>
+    </v-avatar>
           </div>
         </nuxt-link>
       </v-toolbar-title>
@@ -302,7 +309,13 @@
                 class="d-flex align-center justify-center mr-3"
                 style="width: 36px; height: 36px; border-radius: 50%; background: #fff;"
               >
-                <v-icon color="#E53935" size="20">mdi-heart</v-icon>
+                <v-avatar
+                      color="primary"
+                      size="20"> 
+                      <v-img :src="logo"></v-img>
+                    </v-avatar>
+
+
               </div>
               <span
                 style="font-size: 1rem; font-weight: 900; letter-spacing: 2px; color: #fff; text-transform: uppercase;"
@@ -407,11 +420,13 @@
 
 <script>
 import { mapGetters, mapState } from 'vuex'
+import logo from '@/assets/logo.jpg'
 
 export default {
   name: 'DefaultLayout',
   data() {
     return {
+      logo,
       drawer: false,
       cartDrawer: false,
       snackbar: { show: false, message: '', color: 'black' },

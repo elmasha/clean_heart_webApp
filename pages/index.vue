@@ -427,7 +427,11 @@
           <v-col cols="12" md="8" class="text-center">
             <div class="d-flex align-center justify-center mb-6">
               <div class="d-flex align-center justify-center mr-4" style="width: 50px; height: 50px; border-radius: 50%; background: #fff;">
-                <v-icon color="#E53935" size="28">mdi-heart</v-icon>
+                 <v-avatar
+                      color="primary"
+                      size="28"> 
+                      <v-img :src="logo"></v-img>
+                    </v-avatar>
               </div>
               <span style="font-size: 1.5rem; font-weight: 900; letter-spacing: 3px; color: #fff; text-transform: uppercase;">CLEAN HEART</span>
             </div>
@@ -467,12 +471,13 @@
 
 <script>
 import { mapState, mapGetters } from 'vuex'
-
+import logo from '@/assets/logo.jpg'
 export default {
   name: 'IndexPage',
   data() {
     return {
       email: '',
+      logo,
       selectedSize: 'M',
       selectedColor: 'Black',
       activeFilter: 'All',
