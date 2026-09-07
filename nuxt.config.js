@@ -52,13 +52,13 @@ export default {
       "@nuxtjs/firebase",
       {
         config: {
-          apiKey: "AIzaSyAwLDEb3zYp9_0KNzrmz4reYgI3Y6iFCkg",
-          authDomain: "swiife-260ff.firebaseapp.com",
-          projectId: "swiife-260ff",
-          storageBucket: "swiife-260ff.firebasestorage.app",
-          messagingSenderId: "872066992824",
-          appId: "1:872066992824:web:b76134c4b884354b13424d",
-          measurementId: "G-29FZ1PJ8HL"
+          apiKey: "AIzaSyA1bevCNuORUYa1f2_b2_Otj0yVMIkkLSI",
+          authDomain: "clean-heart-85fea.firebaseapp.com",
+          projectId: "clean-heart-85fea",
+          storageBucket: "clean-heart-85fea.firebasestorage.app",
+          messagingSenderId: "890248014442",
+          appId: "1:890248014442:web:73f193e9b4da705b267813",
+          measurementId: "G-7JKBZMJY3G"
         },
         services: {
           auth: {

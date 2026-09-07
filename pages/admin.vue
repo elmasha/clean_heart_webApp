@@ -1687,6 +1687,20 @@
 <script>
 export default {
   name: 'AdminPage',
+  middleware({ store, redirect }) {
+    const ADMIN_EMAILS = ['cleanheartt6@gmail.com']
+    const user = store.state.authUser
+    
+    if (!user) {
+      redirect('/admin/login')
+      return
+    }
+    
+    if (!ADMIN_EMAILS.includes(user.email)) {
+      alert('🚫 Access Denied. Admin access restricted.')
+      redirect('/')
+    }
+  },
   data() {
     return {
       mobileDrawer: false,
