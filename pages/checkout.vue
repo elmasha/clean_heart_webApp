@@ -187,6 +187,11 @@
               Order Summary
             </div>
 
+            <!-- Loading State -->
+            <div v-if="loadingDeliveryFee" class="d-flex justify-center py-4">
+              <v-progress-circular indeterminate color="#E53935" size="24" />
+            </div>
+
             <!-- Cart Items -->
             <div
               v-for="(item, index) in cartItems"
@@ -225,7 +230,13 @@
             <div class="d-flex justify-space-between mb-2">
               <span style="font-size: 0.85rem; color: #666;">Shipping</span>
               <span style="font-size: 0.85rem; font-weight: 600;">
-                {{ shippingCost > 0 ? 'Ksh ' + formatPrice(shippingCost) : 'Free' }}
+                <span v-if="loadingDeliveryFee">
+                  <v-progress-circular indeterminate color="#E53935" size="16" />
+                </span>
+                <span v-else-if="deliveryFeeData">
+                  {{ deliveryFeeData.is_free_delivery ? 'Free' : 'Ksh ' + formatPrice(deliveryFeeData.delivery_fee) }}
+                </span>
+                <span v-else>Calculating...</span>
               </span>
             </div>
             <div class="d-flex justify-space-between mb-2">
@@ -247,7 +258,7 @@
               height="52"
               style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
               :loading="placingOrder"
-              :disabled="cartItems.length === 0"
+              :disabled="cartItems.length === 0 || loadingDeliveryFee"
               @click="placeOrder"
             >
               {{ cartItems.length === 0 ? 'Cart is Empty' : 'Place Order' }}
@@ -319,6 +330,8 @@ export default {
         cvv: '' 
       },
       placingOrder: false,
+      loadingDeliveryFee: false,
+      deliveryFeeData: null,
       
       // Result dialog states
       resultDialog: false,
@@ -344,12 +357,12 @@ export default {
     cartTotal() {
       return this.getCartTotal || 0
     },
+    // 🔥 FIX: Get shipping cost from database response
     shippingCost() {
-      const total = this.cartTotal
-      if (total >= 7500) {
-        return 0
+      if (this.deliveryFeeData) {
+        return this.deliveryFeeData.delivery_fee || 0
       }
-      return 500
+      return 0
     },
     tax() {
       return this.cartTotal * 0.16
@@ -368,6 +381,17 @@ export default {
       if (this.resultType === 'warning') return 'warning-text';
       return 'error-text';
     },
+  },
+  watch: {
+    // 🔥 Watch cart total changes and recalculate delivery fee
+    cartTotal: {
+      immediate: true,
+      handler(val) {
+        if (val > 0) {
+          this.fetchDeliveryFee(val)
+        }
+      }
+    }
   },
   mounted() {
     if (this.isCartEmpty) {
@@ -438,6 +462,38 @@ export default {
       return `cart-${productId}-${variant}`
     },
 
+    // 🔥 NEW: Fetch delivery fee from database
+    async fetchDeliveryFee(subtotal) {
+      if (!subtotal || subtotal <= 0) {
+        this.deliveryFeeData = null
+        return
+      }
+
+      this.loadingDeliveryFee = true
+      try {
+        const { data } = await this.$axios.get('/api/checkout/delivery-fee', {
+          params: { subtotal: subtotal }
+        })
+
+        if (data.success) {
+          this.deliveryFeeData = data.data
+          console.log('📦 Delivery fee fetched:', this.deliveryFeeData)
+        } else {
+          console.error('Failed to fetch delivery fee:', data.error)
+        }
+      } catch (error) {
+        console.error('Error fetching delivery fee:', error)
+        // Fallback to default if API fails
+        this.deliveryFeeData = {
+          delivery_fee: 500,
+          is_free_delivery: false,
+          free_delivery_threshold: 7500
+        }
+      } finally {
+        this.loadingDeliveryFee = false
+      }
+    },
+
     validateForm() {
       const required = ['firstName', 'lastName', 'email', 'phone', 'address', 'city']
       for (const field of required) {
@@ -490,7 +546,10 @@ export default {
       this.resultIconColor = cfg.color;
 
       if (type === 'success') {
-        this.resultDetails = `Your order #${this.paymentOrderNumber} has been placed. You will pay on delivery.`;
+        const deliveryInfo = this.deliveryFeeData?.is_free_delivery 
+          ? 'Free delivery applied!' 
+          : `Delivery fee: Ksh ${this.formatPrice(this.shippingCost)}`
+        this.resultDetails = `Your order #${this.paymentOrderNumber} has been placed. ${deliveryInfo}`
       } else {
         this.resultDetails = '';
       }
@@ -533,10 +592,12 @@ export default {
             variant: this.getVariantDisplay(item)
           })),
           subtotal: this.cartTotal,
-          shipping_cost: this.shippingCost,
+          shipping_cost: this.shippingCost, // This will be used if backend needs it, but backend will recalculate
           tax_amount: this.tax,
           total_amount: this.orderTotal,
         }
+
+        console.log('📦 Order data:', orderData)
 
         const { data } = await this.$axios.post('/api/checkout/initiate', orderData, {
           withCredentials: false
@@ -546,9 +607,12 @@ export default {
           this.paymentOrderId = data.data.orderId
           this.paymentOrderNumber = data.data.orderNumber
           
+          const totalAmount = data.data.total_amount || this.orderTotal
+          const deliveryFee = data.data.delivery_fee || this.shippingCost
+          
           this.showResult(
             'Order Placed Successfully! 🎉',
-            `Your order #${this.paymentOrderNumber} has been placed. You will pay Ksh ${this.formatPrice(this.orderTotal)} on delivery.`,
+            `Your order #${this.paymentOrderNumber} has been placed. Total: Ksh ${this.formatPrice(totalAmount)}`,
             'success'
           )
           

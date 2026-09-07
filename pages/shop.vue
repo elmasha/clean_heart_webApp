@@ -291,7 +291,7 @@ export default {
       selectedCategories: [],
       selectedSizes: [],
       selectedColors: [],
-      priceRange: [0, 200],
+      priceRange: [0, 4000],
       sortBy: 'Featured',
       categories: ['Hoodies', 'Sweatshirts', 'T-Shirts', 'Crop Tops'],
       sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],

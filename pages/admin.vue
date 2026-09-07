@@ -1,6 +1,6 @@
 <template>
   <div class="admin-wrapper">
-    <!-- Mobile Header with Navigation Drawer Toggle -->
+    <!-- Mobile Header -->
     <v-app-bar
       v-if="$vuetify.breakpoint.smAndDown"
       flat
@@ -67,6 +67,14 @@
           <v-list-item-title class="nav-title" :class="{ 'active-text': activeSection === item.id }">
             {{ item.title }}
           </v-list-item-title>
+          <v-badge
+            v-if="item.id === 'orders' && pendingOrdersCount > 0"
+            :content="pendingOrdersCount"
+            color="#E53935"
+            offset-x="8"
+            offset-y="8"
+            class="badge-mobile"
+          />
         </v-list-item>
       </v-list>
 
@@ -108,6 +116,14 @@
                 <v-list-item-title class="nav-title" :class="{ 'active-text': activeSection === item.id }">
                   {{ item.title }}
                 </v-list-item-title>
+                <v-badge
+                  v-if="item.id === 'orders' && pendingOrdersCount > 0"
+                  :content="pendingOrdersCount"
+                  color="#E53935"
+                  offset-x="12"
+                  offset-y="12"
+                  class="badge-desktop"
+                />
               </v-list-item>
             </v-list>
           </v-card>
@@ -137,6 +153,14 @@
                 >
                   <v-icon size="16" class="mr-1">{{ item.icon }}</v-icon>
                   <span class="tab-label">{{ item.title }}</span>
+                  <v-badge
+                    v-if="item.id === 'orders' && pendingOrdersCount > 0"
+                    :content="pendingOrdersCount"
+                    color="#E53935"
+                    offset-x="4"
+                    offset-y="4"
+                    class="badge-tab"
+                  />
                 </v-btn>
               </v-slide-item>
             </v-slide-group>
@@ -742,9 +766,11 @@
                           <th>Order #</th>
                           <th v-if="!$vuetify.breakpoint.smAndDown">Customer</th>
                           <th>Status</th>
+                          <th>Payment</th>
+                          <th>Delivery</th>
                           <th class="text-right">Total</th>
                           <th class="text-right" v-if="!$vuetify.breakpoint.smAndDown">Date</th>
-                          <th class="text-center" style="width: 80px;">Actions</th>
+                          <th class="text-center" style="width: 110px;">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -755,7 +781,7 @@
                               <v-avatar size="24" color="#f5f5f5" class="mr-2">
                                 <v-icon size="12" color="#666">mdi-account</v-icon>
                               </v-avatar>
-                              <span class="text-truncate" style="max-width: 0px;">{{ item.firebase_uid }}</span>
+                              <span class="text-truncate" style="max-width: 80px;">{{ item.customer_name || item.firebase_uid }}</span>
                             </div>
                           </td>
                           <td>
@@ -763,11 +789,33 @@
                               {{ item.status }}
                             </v-chip>
                           </td>
+                          <td>
+                            <v-chip x-small label :color="item.payment_status === 'paid' ? 'success' : 'warning'">
+                              {{ item.payment_status || 'pending' }}
+                            </v-chip>
+                          </td>
+                          <td>
+                            <v-chip x-small label :color="getDeliveryStatusColor(item.delivery_status)">
+                              {{ item.delivery_status || 'pending' }}
+                            </v-chip>
+                          </td>
                           <td class="text-right font-weight-bold">Ksh {{ formatMoney(item.total_amount) }}</td>
                           <td class="text-right grey--text text--darken-1" v-if="!$vuetify.breakpoint.smAndDown">{{ formatDate(item.created_at) }}</td>
                           <td class="text-center">
                             <v-btn icon x-small color="primary" class="mr-1" @click="viewOrderDetails(item)">
                               <v-icon size="14">mdi-eye</v-icon>
+                            </v-btn>
+                            <!-- Assign Delivery Button for COD orders -->
+                            <v-btn 
+                              v-if="item.payment_method === 'cod' && (item.delivery_status === 'pending' || !item.delivery_status)" 
+                              icon 
+                              x-small 
+                              color="#E53935" 
+                              class="mr-1" 
+                              @click="openAssignDeliveryDialog(item)"
+                              title="Assign Rider"
+                            >
+                              <v-icon size="14">mdi-truck-delivery</v-icon>
                             </v-btn>
                             <v-menu offset-y left>
                               <template #activator="{ on, attrs }">
@@ -885,6 +933,218 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+              </v-card>
+            </div>
+          </template>
+
+          <!-- Revenue Section -->
+          <template v-if="activeSection === 'revenue'">
+            <div class="fade-in">
+              <div class="section-header mb-4 mb-md-6">
+                <div>
+                  <h1 class="section-title">Revenue Dashboard</h1>
+                  <p class="section-subtitle">Track your revenue from confirmed deliveries</p>
+                </div>
+                <div class="d-flex" style="gap: 8px;" :style="{ flexDirection: $vuetify.breakpoint.smAndDown ? 'column' : 'row' }">
+                  <v-btn-toggle v-model="revenuePeriod" mandatory dense class="period-toggle">
+                    <v-btn value="today" small>Today</v-btn>
+                    <v-btn value="week" small>Week</v-btn>
+                    <v-btn value="month" small>Month</v-btn>
+                    <v-btn value="year" small>Year</v-btn>
+                  </v-btn-toggle>
+                  <v-btn color="#0f0f0f" dark depressed class="action-btn" @click="fetchRevenue" block v-if="$vuetify.breakpoint.smAndDown">
+                    <v-icon left size="16">mdi-refresh</v-icon>
+                    Refresh
+                  </v-btn>
+                  <v-btn color="#0f0f0f" dark depressed class="action-btn" @click="fetchRevenue" v-else>
+                    <v-icon left size="16">mdi-refresh</v-icon>
+                    Refresh
+                  </v-btn>
+                </div>
+              </div>
+
+              <!-- Summary Cards -->
+              <v-row class="mb-4">
+                <v-col cols="6" sm="3" v-for="stat in revenueStats" :key="stat.label">
+                  <v-card class="stat-card" flat>
+                    <div class="stat-icon-wrapper" :style="{ background: stat.bg }">
+                      <v-icon size="18" :color="stat.iconColor">{{ stat.icon }}</v-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-value" :class="{ 'stat-value-sm': $vuetify.breakpoint.smAndDown }">{{ stat.value }}</div>
+                      <div class="stat-label">{{ stat.label }}</div>
+                    </div>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Payment Method Breakdown -->
+              <v-row class="mb-4">
+                <v-col cols="12" md="6">
+                  <v-card class="content-card" flat>
+                    <div class="card-header">
+                      <span class="card-header-title">Payment Methods</span>
+                    </div>
+                    <v-divider />
+                    <div class="pa-4">
+                      <v-row>
+                        <v-col cols="6">
+                          <div class="payment-stat">
+                            <div class="payment-label">COD</div>
+                            <div class="payment-value">Ksh {{ formatMoney(revenueSummary.cod_revenue) }}</div>
+                            <div class="payment-count">{{ revenueSummary.cod_orders }} orders</div>
+                          </div>
+                        </v-col>
+                        <v-col cols="6">
+                          <div class="payment-stat">
+                            <div class="payment-label">M-Pesa</div>
+                            <div class="payment-value">Ksh {{ formatMoney(revenueSummary.mpesa_revenue) }}</div>
+                            <div class="payment-count">{{ revenueSummary.mpesa_orders }} orders</div>
+                          </div>
+                        </v-col>
+                      </v-row>
+                    </div>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" md="6">
+                  <v-card class="content-card" flat>
+                    <div class="card-header">
+                      <span class="card-header-title">COD Payment Status</span>
+                    </div>
+                    <v-divider />
+                    <div class="pa-4">
+                      <v-row>
+                        <v-col cols="4">
+                          <div class="cod-stat">
+                            <div class="cod-label">Total</div>
+                            <div class="cod-value">{{ revenueCodStatus.total_cod_orders }}</div>
+                          </div>
+                        </v-col>
+                        <v-col cols="4">
+                          <div class="cod-stat paid">
+                            <div class="cod-label">✅ Paid</div>
+                            <div class="cod-value">{{ revenueCodStatus.cod_paid }}</div>
+                          </div>
+                        </v-col>
+                        <v-col cols="4">
+                          <div class="cod-stat pending">
+                            <div class="cod-label">⏳ Pending</div>
+                            <div class="cod-value">{{ revenueCodStatus.cod_pending }}</div>
+                          </div>
+                        </v-col>
+                      </v-row>
+                    </div>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Top Products -->
+              <v-card class="content-card mb-4" flat>
+                <div class="card-header">
+                  <span class="card-header-title">Top Selling Products</span>
+                </div>
+                <v-divider />
+                <div class="pa-0">
+                  <div v-if="loadingRevenue" class="d-flex justify-center pa-6">
+                    <v-progress-circular indeterminate color="#E53935" size="28" />
+                  </div>
+                  <div v-else-if="revenueTopProducts.length === 0" class="empty-state">
+                    <v-icon size="32" color="grey lighten-1">mdi-package-variant</v-icon>
+                    <div class="empty-title">No Products Sold</div>
+                  </div>
+                  <div v-else class="table-wrapper">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Product</th>
+                          <th class="text-center">Sold</th>
+                          <th class="text-right">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(item, index) in revenueTopProducts" :key="item.id">
+                          <td>
+                            <span class="rank-badge" :class="{ 'top-three': index < 3 }">{{ index + 1 }}</span>
+                          </td>
+                          <td>
+                            <div class="d-flex align-center">
+                              <v-img
+                                :src="item.image_url || '/placeholder-product.jpg'"
+                                width="40"
+                                height="40"
+                                contain
+                                class="mr-3"
+                                style="border-radius: 4px; background: #f5f5f5;"
+                              />
+                              <div>
+                                <div class="font-weight-medium">{{ item.name }}</div>
+                                <div class="text-caption grey--text">{{ item.quantity_sold }} units sold</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td class="text-center">{{ item.total_sold || item.quantity_sold }}</td>
+                          <td class="text-right font-weight-bold">Ksh {{ formatMoney(item.revenue) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </v-card>
+
+              <!-- Confirmed Orders List -->
+              <v-card class="content-card" flat>
+                <div class="card-header">
+                  <span class="card-header-title">Confirmed Orders</span>
+                  <v-chip small color="#E53935" text-color="white">Paid</v-chip>
+                </div>
+                <v-divider />
+                <div class="pa-0">
+                  <div v-if="loadingRevenue" class="d-flex justify-center pa-6">
+                    <v-progress-circular indeterminate color="#E53935" size="28" />
+                  </div>
+                  <div v-else-if="revenueConfirmedOrders.length === 0" class="empty-state">
+                    <v-icon size="32" color="grey lighten-1">mdi-package-variant</v-icon>
+                    <div class="empty-title">No Confirmed Orders</div>
+                    <div class="empty-text">Orders will appear here once they are delivered and payment is confirmed</div>
+                  </div>
+                  <div v-else class="table-wrapper">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Order #</th>
+                          <th>Customer</th>
+                          <th>Payment</th>
+                          <th class="text-right">Amount</th>
+                          <th>Rider</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="item in revenueConfirmedOrders" :key="item.id">
+                          <td class="font-weight-medium">#{{ item.order_number }}</td>
+                          <td>
+                            <div>{{ item.customer_name }}</div>
+                            <div class="text-caption grey--text">{{ item.customer_phone }}</div>
+                          </td>
+                          <td>
+                            <v-chip x-small :color="item.payment_method === 'cod' ? '#E53935' : '#1976d2'" text-color="white">
+                              {{ item.payment_method === 'cod' ? '💰 COD' : '📱 M-Pesa' }}
+                            </v-chip>
+                            <div class="text-caption grey--text" v-if="item.mpesa_receipt">Receipt: {{ item.mpesa_receipt }}</div>
+                          </td>
+                          <td class="text-right font-weight-bold">Ksh {{ formatMoney(item.total_amount) }}</td>
+                          <td>
+                            <div class="text-caption">{{ item.rider_name || 'N/A' }}</div>
+                            <div class="text-caption grey--text">{{ item.rider_phone || '' }}</div>
+                          </td>
+                          <td class="text-caption">{{ formatDate(item.created_at) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </v-card>
             </div>
@@ -1050,11 +1310,129 @@
       </v-row>
     </v-container>
 
+    <!-- ===== ASSIGN DELIVERY DIALOG ===== -->
+    <v-dialog v-model="assignDeliveryDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 550" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
+      <v-card class="dialog-card" flat>
+        <div class="dialog-header" style="background: linear-gradient(135deg, #0f0f0f, #1a1a1a);">
+          <span class="dialog-title">
+            <v-icon color="#E53935" size="20" class="mr-2">mdi-truck-delivery</v-icon>
+            Assign Delivery
+          </span>
+          <v-btn icon small dark @click="assignDeliveryDialog = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </div>
+        <v-divider />
+        <v-card-text class="pa-4 pa-md-6" v-if="selectedOrderForDelivery">
+          <!-- Order Summary -->
+          <div class="order-summary">
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-label">Order #</div>
+                <div class="summary-value font-weight-bold">#{{ selectedOrderForDelivery.order_number }}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Customer</div>
+                <div class="summary-value">{{ selectedOrderForDelivery.customer_name || 'N/A' }}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Total Amount</div>
+                <div class="summary-total">Ksh {{ formatMoney(selectedOrderForDelivery.total_amount) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <v-divider class="my-4" />
+
+          <!-- Rider Selection -->
+          <div class="rider-selection">
+            <div class="detail-label mb-2">
+              <v-icon size="16" color="#E53935" class="mr-1">mdi-motorbike</v-icon>
+              Select Rider
+            </div>
+            <v-select
+              v-model="selectedRiderId"
+              :items="availableRiders"
+              item-text="full_name"
+              item-value="id"
+              label="Choose a rider"
+              outlined
+              dense
+              hide-details
+              class="mb-4"
+              :loading="loadingRiders"
+            >
+              <template #item="{ item }">
+                <div class="d-flex align-center">
+                  <v-icon small color="#E53935" class="mr-2">mdi-motorbike</v-icon>
+                  <span>{{ item.full_name }}</span>
+                  <v-chip x-small class="ml-2" :color="item.status === 'active' ? 'success' : 'warning'">
+                    {{ item.status }}
+                  </v-chip>
+                  <span class="ml-2 grey--text text-caption">({{ item.vehicle_type }})</span>
+                  <span class="ml-auto grey--text text-caption">
+                    ⭐ {{ item.rating || 0 }}
+                  </span>
+                </div>
+              </template>
+              <template #no-data>
+                <div class="pa-4 text-center">
+                  <v-icon size="32" color="grey lighten-1">mdi-motorbike-off</v-icon>
+                  <div class="mt-2 grey--text">No riders available</div>
+                  <div class="caption grey--text">Please add riders or check their status</div>
+                </div>
+              </template>
+            </v-select>
+
+            <v-text-field
+              v-model="deliveryFee"
+              label="Delivery Fee (Ksh)"
+              outlined
+              dense
+              hide-details
+              type="number"
+              class="mb-4"
+              prefix="Ksh"
+              hint="Default: 200 Ksh"
+              persistent-hint
+            />
+          </div>
+
+          <v-alert type="info" dense text class="mt-4" border="left" colored-border>
+            <div class="d-flex align-center">
+              <v-icon left size="18" color="#E53935">mdi-information</v-icon>
+              <span>This will assign a rider to deliver this order. The rider will be notified via SMS.</span>
+            </div>
+          </v-alert>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions class="pa-3 pa-md-4">
+          <v-spacer />
+          <v-btn text class="mr-2" @click="assignDeliveryDialog = false">Cancel</v-btn>
+          <v-btn 
+            color="#E53935" 
+            dark 
+            depressed 
+            :loading="assigningDelivery" 
+            :disabled="!selectedRiderId"
+            @click="assignDelivery"
+            class="assign-btn"
+          >
+            <v-icon left size="16" v-if="!assigningDelivery">mdi-check</v-icon>
+            Assign Rider
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Rider Dialog -->
     <v-dialog v-model="riderDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 500" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
       <v-card class="dialog-card" flat>
-        <div class="dialog-header">
-          <span class="dialog-title">{{ editingRider ? 'Edit Rider' : 'Add Rider' }}</span>
+        <div class="dialog-header" style="background: linear-gradient(135deg, #0f0f0f, #1a1a1a);">
+          <span class="dialog-title">
+            <v-icon color="#E53935" size="20" class="mr-2">mdi-account-plus</v-icon>
+            {{ editingRider ? 'Edit Rider' : 'Add Rider' }}
+          </span>
           <v-btn icon small dark @click="riderDialog = false">
             <v-icon>mdi-close</v-icon>
           </v-btn>
@@ -1086,8 +1464,11 @@
     <!-- Product Dialog -->
     <v-dialog v-model="productDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 650" :fullscreen="$vuetify.breakpoint.smAndDown" persistent scrollable>
       <v-card class="dialog-card" flat>
-        <div class="dialog-header">
-          <span class="dialog-title">{{ editingProduct ? 'Edit Product' : 'Add Product' }}</span>
+        <div class="dialog-header" style="background: linear-gradient(135deg, #0f0f0f, #1a1a1a);">
+          <span class="dialog-title">
+            <v-icon color="#E53935" size="20" class="mr-2">mdi-package-variant</v-icon>
+            {{ editingProduct ? 'Edit Product' : 'Add Product' }}
+          </span>
           <v-btn icon small dark @click="productDialog = false">
             <v-icon>mdi-close</v-icon>
           </v-btn>
@@ -1156,8 +1537,11 @@
     <!-- Category Dialog -->
     <v-dialog v-model="categoryDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 500" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
       <v-card class="dialog-card" flat>
-        <div class="dialog-header">
-          <span class="dialog-title">{{ editingCategory ? 'Edit Category' : 'Add Category' }}</span>
+        <div class="dialog-header" style="background: linear-gradient(135deg, #0f0f0f, #1a1a1a);">
+          <span class="dialog-title">
+            <v-icon color="#E53935" size="20" class="mr-2">mdi-view-list</v-icon>
+            {{ editingCategory ? 'Edit Category' : 'Add Category' }}
+          </span>
           <v-btn icon small dark @click="categoryDialog = false">
             <v-icon>mdi-close</v-icon>
           </v-btn>
@@ -1189,8 +1573,11 @@
     <!-- Variant Dialog -->
     <v-dialog v-model="variantDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 550" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
       <v-card class="dialog-card" flat>
-        <div class="dialog-header">
-          <span class="dialog-title">{{ editingVariant ? 'Edit Variant' : 'Add Variant' }}</span>
+        <div class="dialog-header" style="background: linear-gradient(135deg, #0f0f0f, #1a1a1a);">
+          <span class="dialog-title">
+            <v-icon color="#E53935" size="20" class="mr-2">mdi-palette</v-icon>
+            {{ editingVariant ? 'Edit Variant' : 'Add Variant' }}
+          </span>
           <v-btn icon small dark @click="variantDialog = false">
             <v-icon>mdi-close</v-icon>
           </v-btn>
@@ -1252,8 +1639,11 @@
     <!-- Order Detail Dialog -->
     <v-dialog v-model="orderDetailDialog" :max-width="$vuetify.breakpoint.smAndDown ? undefined : 700" :fullscreen="$vuetify.breakpoint.smAndDown" persistent>
       <v-card class="dialog-card" flat v-if="selectedOrder">
-        <div class="dialog-header">
-          <span class="dialog-title">Order #{{ selectedOrder.order_number }}</span>
+        <div class="dialog-header" style="background: linear-gradient(135deg, #0f0f0f, #1a1a1a);">
+          <span class="dialog-title">
+            <v-icon color="#E53935" size="20" class="mr-2">mdi-package-variant</v-icon>
+            Order #{{ selectedOrder.order_number }}
+          </span>
           <v-btn icon small dark @click="orderDetailDialog = false">
             <v-icon>mdi-close</v-icon>
           </v-btn>
@@ -1261,16 +1651,17 @@
         <v-divider />
         <v-card-text class="pa-4 pa-md-6">
           <v-row>
-            <v-col cols="12" sm="6">
-              <div class="detail-label">Customer ID</div>
-              <div class="detail-value d-flex align-center">
-                <v-avatar size="24" color="#f5f5f5" class="mr-2">
-                  <v-icon size="12" color="#666">mdi-account</v-icon>
-                </v-avatar>
-                {{ selectedOrder.firebase_uid }}
-              </div>
+            <v-col cols="12" sm="4">
+              <div class="detail-label">Customer</div>
+              <div class="detail-value">{{ selectedOrder.customer_name || 'N/A' }}</div>
             </v-col>
-            <v-col cols="12" sm="6" class="text-sm-right">
+            <v-col cols="12" sm="4">
+              <div class="detail-label">Payment</div>
+              <v-chip x-small label :color="selectedOrder.payment_status === 'paid' ? 'success' : 'warning'">
+                {{ selectedOrder.payment_status || 'pending' }}
+              </v-chip>
+            </v-col>
+            <v-col cols="12" sm="4" class="text-sm-right">
               <div class="detail-label">Status</div>
               <v-chip :color="getStatusColor(selectedOrder.status)" label dark class="status-chip">
                 {{ selectedOrder.status }}
@@ -1323,6 +1714,22 @@
               <div class="detail-total">Ksh {{ formatMoney(selectedOrder.total_amount) }}</div>
             </v-col>
           </v-row>
+
+          <!-- Delivery Assignment Info -->
+          <div v-if="selectedOrder.delivery_assignment" class="mt-4">
+            <v-divider class="my-4" />
+            <div class="detail-label">Delivery Assignment</div>
+            <div class="d-flex align-center mt-2">
+              <v-icon color="#E53935" class="mr-2">mdi-motorbike</v-icon>
+              <span class="font-weight-medium">{{ selectedOrder.delivery_assignment.rider_name || 'Assigned' }}</span>
+              <v-chip x-small class="ml-2" :color="getDeliveryStatusColor(selectedOrder.delivery_assignment.status)">
+                {{ selectedOrder.delivery_assignment.status }}
+              </v-chip>
+            </div>
+            <div class="text-caption grey--text mt-1">
+              {{ selectedOrder.delivery_assignment.rider_phone || '' }}
+            </div>
+          </div>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -1331,14 +1738,16 @@
     <v-dialog v-model="deleteDialog" :max-width="$vuetify.breakpoint.smAndDown ? 320 : 400" persistent>
       <v-card class="dialog-card" flat>
         <div class="pa-4 pa-md-6 text-center">
-          <v-icon size="48" color="error" class="mb-3">mdi-alert-circle-outline</v-icon>
+          <div class="delete-icon-wrapper">
+            <v-icon size="56" color="error" class="mb-3">mdi-alert-circle-outline</v-icon>
+          </div>
           <h3 class="text-h6 font-weight-bold mb-2">Confirm Delete</h3>
           <p class="body-2 grey--text text--darken-1 mb-4">
             {{ deleteMessage }}
           </p>
           <div class="d-flex justify-center" style="gap: 12px;">
             <v-btn text @click="deleteDialog = false">Cancel</v-btn>
-            <v-btn color="error" dark depressed :loading="saving" @click="executeDelete">
+            <v-btn color="error" dark depressed :loading="saving" @click="executeDelete" class="delete-btn">
               Delete
             </v-btn>
           </div>
@@ -1349,9 +1758,9 @@
     <!-- Snackbar -->
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" top right timeout="4000" class="snackbar-custom">
       <div class="d-flex align-center">
-        <v-icon left size="16" v-if="snackbar.color === 'error'">mdi-alert-circle</v-icon>
-        <v-icon left size="16" v-else-if="snackbar.color === 'success' || snackbar.color === '#E53935'">mdi-check-circle</v-icon>
-        <span>{{ snackbar.message }}</span>
+        <v-icon left size="20" v-if="snackbar.color === 'error'">mdi-alert-circle</v-icon>
+        <v-icon left size="20" v-else-if="snackbar.color === 'success' || snackbar.color === '#E53935'">mdi-check-circle</v-icon>
+        <span class="snackbar-text">{{ snackbar.message }}</span>
       </div>
     </v-snackbar>
   </div>
@@ -1372,8 +1781,10 @@ export default {
       loadingOrders: false,
       loadingReports: false,
       loadingRiders: false,
+      loadingRevenue: false,
       saving: false,
       savingDelivery: false,
+      assigningDelivery: false,
 
       // Dashboard
       stats: [
@@ -1459,6 +1870,40 @@ export default {
       selectedOrder: null,
       orderStatuses: ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'],
 
+      // ===== Delivery Assignment =====
+      assignDeliveryDialog: false,
+      selectedOrderForDelivery: null,
+      selectedRiderId: null,
+      availableRiders: [],
+      deliveryFee: 200,
+
+      // ===== Revenue =====
+      revenuePeriod: 'month',
+      revenueStats: [
+        { label: 'Total Revenue', value: 'Ksh 0', icon: 'mdi-currency-ksh', bg: '#e8f5e9', iconColor: '#388e3c' },
+        { label: 'Total Orders', value: 0, icon: 'mdi-package-variant', bg: '#e3f2fd', iconColor: '#1976d2' },
+        { label: 'Avg Order Value', value: 'Ksh 0', icon: 'mdi-cash-multiple', bg: '#fff3e0', iconColor: '#f57c00' },
+        { label: 'Delivery Fees', value: 'Ksh 0', icon: 'mdi-truck-delivery', bg: '#fce4ec', iconColor: '#E53935' },
+      ],
+      revenueSummary: {
+        total_revenue: 0,
+        total_orders: 0,
+        average_order_value: 0,
+        cod_revenue: 0,
+        cod_orders: 0,
+        mpesa_revenue: 0,
+        mpesa_orders: 0,
+        total_delivery_fees: 0
+      },
+      revenueCodStatus: {
+        total_cod_orders: 0,
+        cod_paid: 0,
+        cod_pending: 0,
+        cod_failed: 0
+      },
+      revenueTopProducts: [],
+      revenueConfirmedOrders: [],
+
       // Reports
       dateFrom: '',
       dateTo: '',
@@ -1483,6 +1928,7 @@ export default {
         { id: 'variants', title: 'Variants', icon: 'mdi-palette' },
         { id: 'orders', title: 'Orders', icon: 'mdi-package-variant' },
         { id: 'riders', title: 'Riders', icon: 'mdi-motorbike' },
+        { id: 'revenue', title: 'Revenue', icon: 'mdi-currency-ksh' },
         { id: 'reports', title: 'Reports', icon: 'mdi-chart-bar' },
       ],
 
@@ -1492,6 +1938,15 @@ export default {
   computed: {
     currentYear() {
       return new Date().getFullYear()
+    },
+    isAdmin() {
+      return this.$store?.state?.authUser?.isAdmin || true
+    },
+    firebaseUid() {
+      return this.$store?.state?.authUser?.uid || 'admin-uid-here'
+    },
+    pendingOrdersCount() {
+      return this.adminOrders.filter(o => o.status === 'pending').length
     }
   },
   mounted() {
@@ -1501,6 +1956,7 @@ export default {
     this.fetchOrders()
     this.fetchReports()
     this.fetchRiders()
+    this.fetchRevenue()
 
     const today = new Date()
     const thirtyDaysAgo = new Date()
@@ -1524,26 +1980,40 @@ export default {
     },
     selectedProduct() {
       this.fetchVariants()
+    },
+    revenuePeriod() {
+      this.fetchRevenue()
     }
   },
   methods: {
     // ===== API Helper =====
     async apiRequest(url, options = {}) {
       try {
-        if (this.$axios && typeof this.$axios === 'function') {
-          const response = await this.$axios({
-            url,
-            ...options
-          })
-          return response.data
-        }
-        
-        const response = await fetch(url, {
-          ...options,
+        const config = {
+          url,
+          method: options.method || 'GET',
           headers: {
             'Content-Type': 'application/json',
             ...(options.headers || {})
           }
+        }
+
+        if (options.body) {
+          config.data = options.body
+        }
+
+        if (this.$axios && typeof this.$axios === 'function') {
+          const response = await this.$axios(config)
+          return response.data
+        }
+        
+        const response = await fetch(url, {
+          method: options.method || 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+          },
+          body: options.body ? JSON.stringify(options.body) : undefined
         })
         
         if (!response.ok) {
@@ -1583,6 +2053,19 @@ export default {
       return colors[status] || 'grey'
     },
 
+    getDeliveryStatusColor(status) {
+      const colors = {
+        pending: 'warning',
+        assigned: 'info',
+        picked_up: 'primary',
+        in_transit: 'primary',
+        delivered: 'success',
+        cancelled: 'error',
+        failed: 'error'
+      }
+      return colors[status] || 'grey'
+    },
+
     // ===== RIDERS =====
     async fetchRiders() {
       this.loadingRiders = true
@@ -1597,6 +2080,22 @@ export default {
         this.showSnackbar('Failed to load riders', 'error')
       } finally {
         this.loadingRiders = false
+      }
+    },
+
+    async fetchAvailableRiders() {
+      try {
+        const data = await this.apiRequest('/api/delivery/available-riders')
+        if (data.success) {
+          this.availableRiders = data.data || []
+          console.log('✅ Available riders loaded:', this.availableRiders.length)
+        } else {
+          this.availableRiders = []
+        }
+      } catch (error) {
+        console.error('❌ Error fetching available riders:', error)
+        this.availableRiders = []
+        this.showSnackbar('Failed to load available riders', 'error')
       }
     },
 
@@ -1636,7 +2135,7 @@ export default {
         
         const data = await this.apiRequest(url, {
           method,
-          body: JSON.stringify(this.riderForm)
+          body: this.riderForm
         })
         
         if (data.success) {
@@ -1649,6 +2148,58 @@ export default {
         this.showSnackbar(error.message || 'Failed to save rider', 'error')
       } finally {
         this.saving = false
+      }
+    },
+
+    // ===== Delivery Assignment =====
+    async openAssignDeliveryDialog(order) {
+      this.selectedOrderForDelivery = order
+      this.selectedRiderId = null
+      this.deliveryFee = 200
+      this.assignDeliveryDialog = true
+      await this.fetchAvailableRiders()
+    },
+
+    async assignDelivery() {
+      if (!this.selectedRiderId || !this.selectedOrderForDelivery) {
+        this.showSnackbar('Please select a rider', 'error')
+        return
+      }
+
+      this.assigningDelivery = true
+      try {
+        const payload = {
+          order_id: this.selectedOrderForDelivery.id,
+          rider_id: this.selectedRiderId,
+          admin_firebase_uid: null,
+          delivery_fee: parseFloat(this.deliveryFee) || 200
+        }
+
+        console.log('📦 Sending assignment request:', payload)
+
+        const data = await this.apiRequest('/api/delivery/assign', {
+          method: 'POST',
+          body: payload
+        })
+
+        console.log('📦 Response:', data)
+
+        if (data.success) {
+          this.showSnackbar(`✅ Delivery assigned to rider successfully!`, '#E53935')
+          this.assignDeliveryDialog = false
+          this.selectedOrderForDelivery = null
+          this.selectedRiderId = null
+          this.fetchOrders()
+          this.fetchDashboardData()
+        } else {
+          this.showSnackbar(data.error || 'Failed to assign delivery', 'error')
+        }
+      } catch (error) {
+        console.error('❌ Assignment error:', error)
+        const errorMsg = error.response?.data?.error || error.message || 'Failed to assign delivery'
+        this.showSnackbar(errorMsg, 'error')
+      } finally {
+        this.assigningDelivery = false
       }
     },
 
@@ -1738,7 +2289,7 @@ export default {
       try {
         const data = await this.apiRequest('/api/admin/delivery-settings', {
           method: 'PUT',
-          body: JSON.stringify(this.deliverySettings)
+          body: this.deliverySettings
         })
         if (data.success) {
           this.showSnackbar('Delivery settings updated!', '#E53935')
@@ -1814,7 +2365,7 @@ export default {
         
         const data = await this.apiRequest(url, {
           method,
-          body: JSON.stringify(this.productForm)
+          body: this.productForm
         })
         
         if (data.success) {
@@ -1873,7 +2424,7 @@ export default {
         
         const data = await this.apiRequest(url, {
           method,
-          body: JSON.stringify(this.categoryForm)
+          body: this.categoryForm
         })
         
         if (data.success) {
@@ -1947,7 +2498,7 @@ export default {
         
         const data = await this.apiRequest(url, {
           method,
-          body: JSON.stringify(this.variantForm)
+          body: this.variantForm
         })
         
         if (data.success) {
@@ -1997,7 +2548,7 @@ export default {
       try {
         const data = await this.apiRequest(`/api/admin/orders/${order.id}/status`, {
           method: 'PUT',
-          body: JSON.stringify({ status })
+          body: { status }
         })
         if (data.success) {
           this.showSnackbar(`Order status updated to ${status}`, '#E53935')
@@ -2005,6 +2556,38 @@ export default {
         }
       } catch (error) {
         this.showSnackbar(error.message || 'Failed to update status', 'error')
+      }
+    },
+
+    // ==================== REVENUE ====================
+    async fetchRevenue() {
+      this.loadingRevenue = true
+      try {
+        const data = await this.apiRequest(`/api/admin/revenue?period=${this.revenuePeriod}`)
+        if (data.success) {
+          this.revenueSummary = data.data.summary
+          this.revenueCodStatus = data.data.cod_status
+          this.revenueTopProducts = data.data.top_products || []
+          
+          // Update stats
+          this.revenueStats = [
+            { label: 'Total Revenue', value: `Ksh ${this.formatMoney(this.revenueSummary.total_revenue)}`, icon: 'mdi-currency-ksh', bg: '#e8f5e9', iconColor: '#388e3c' },
+            { label: 'Total Orders', value: this.revenueSummary.total_orders, icon: 'mdi-package-variant', bg: '#e3f2fd', iconColor: '#1976d2' },
+            { label: 'Avg Order Value', value: `Ksh ${this.formatMoney(this.revenueSummary.average_order_value)}`, icon: 'mdi-cash-multiple', bg: '#fff3e0', iconColor: '#f57c00' },
+            { label: 'Delivery Fees', value: `Ksh ${this.formatMoney(this.revenueSummary.total_delivery_fees)}`, icon: 'mdi-truck-delivery', bg: '#fce4ec', iconColor: '#E53935' },
+          ]
+          
+          // Fetch confirmed orders
+          const confirmedData = await this.apiRequest('/api/admin/revenue/confirmed')
+          if (confirmedData.success) {
+            this.revenueConfirmedOrders = confirmedData.data.orders || []
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching revenue:', error)
+        this.showSnackbar('Failed to load revenue data', 'error')
+      } finally {
+        this.loadingRevenue = false
       }
     },
 
@@ -2050,6 +2633,9 @@ export default {
 </script>
 
 <style scoped>
+/* ============================================================
+   ADMIN PANEL STYLES
+   ============================================================ */
 
 /* ========== SIDEBAR (Desktop) ========== */
 .sidebar-col {
@@ -2118,8 +2704,16 @@ export default {
   font-weight: 500;
   color: #555;
 }
-.sidebar-footer {
-  padding: 12px 0 4px;
+.badge-desktop {
+  margin-left: auto;
+}
+.badge-mobile {
+  margin-left: auto;
+}
+.badge-tab .v-badge__badge {
+  font-size: 9px !important;
+  min-width: 18px !important;
+  height: 18px !important;
 }
 
 /* ========== MOBILE HEADER ========== */
@@ -2417,7 +3011,7 @@ export default {
   overflow: hidden;
 }
 .dialog-header {
-  background: #0f0f0f;
+  background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
   color: white;
   padding: 14px 20px;
   display: flex;
@@ -2427,6 +3021,8 @@ export default {
 .dialog-title {
   font-weight: 700;
   font-size: 0.95rem;
+  display: flex;
+  align-items: center;
 }
 .image-preview {
   background: #f8f9fa;
@@ -2450,21 +3046,37 @@ export default {
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-/* ========== FORM FIELDS ========== */
-.compact-field ::v-deep .v-input__slot {
-  border-radius: 8px !important;
+/* ========== ORDER SUMMARY IN DELIVERY DIALOG ========== */
+.order-summary {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
 }
-.compact-field ::v-deep .v-label {
-  font-size: 0.82rem;
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
 }
-
-/* ========== ANIMATIONS ========== */
-.fade-in {
-  animation: fadeIn 0.3s ease-in-out;
+.summary-item {
+  text-align: center;
 }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+.summary-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #999;
+  font-weight: 600;
+}
+.summary-value {
+  font-size: 0.9rem;
+  color: #333;
+  margin-top: 2px;
+}
+.summary-total {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #E53935;
+  margin-top: 2px;
 }
 
 /* ========== DETAIL VIEW ========== */
@@ -2492,9 +3104,97 @@ export default {
   padding: 10px 0;
 }
 
+/* ========== REVENUE STYLES ========== */
+.period-toggle {
+  background: white;
+  border-radius: 8px !important;
+  border: 1px solid #e0e0e0;
+}
+.period-toggle .v-btn {
+  font-weight: 600 !important;
+  text-transform: none !important;
+}
+.period-toggle .v-btn--active {
+  background: #0f0f0f !important;
+  color: white !important;
+}
+
+.payment-stat {
+  text-align: center;
+  padding: 8px;
+}
+.payment-label {
+  font-size: 0.75rem;
+  color: #888;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.payment-value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f0f0f;
+}
+.payment-count {
+  font-size: 0.7rem;
+  color: #999;
+}
+
+.cod-stat {
+  text-align: center;
+  padding: 4px;
+}
+.cod-stat.paid .cod-value {
+  color: #2E7D32;
+}
+.cod-stat.pending .cod-value {
+  color: #F26522;
+}
+.cod-label {
+  font-size: 0.7rem;
+  color: #888;
+  font-weight: 600;
+}
+.cod-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0f0f0f;
+}
+
+/* ========== BUTTONS ========== */
+.action-btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px !important;
+}
+.refresh-btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+}
+.assign-btn {
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+}
+.delete-btn {
+  border-radius: 8px !important;
+}
+
 /* ========== SNACKBAR ========== */
 .snackbar-custom {
   border-radius: 8px !important;
+}
+.snackbar-text {
+  font-weight: 500;
+}
+
+/* ========== ANIMATIONS ========== */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ============================================================
@@ -2585,6 +3285,10 @@ export default {
   .detail-total {
     font-size: 1rem !important;
   }
+  
+  .summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* ---------- Tablet: 600px - 959px ---------- */
@@ -2649,6 +3353,21 @@ export default {
   .stat-card:hover {
     transform: none;
     box-shadow: none;
+  }
+}
+
+/* ---------- Print Styles ---------- */
+@media print {
+  .sidebar-col,
+  .mobile-header,
+  .mobile-tabs,
+  .refresh-btn,
+  .action-btn {
+    display: none !important;
+  }
+  .content-card {
+    border: 1px solid #ddd !important;
+    break-inside: avoid;
   }
 }
 </style>
