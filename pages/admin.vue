@@ -1,92 +1,10 @@
 <template>
   <div class="admin-wrapper">
-    <!-- Mobile Header -->
-    <v-app-bar
-      v-if="$vuetify.breakpoint.smAndDown"
-      flat
-      color="white"
-      height="56"
-      class="mobile-header"
-      style="border-bottom: 1px solid #e8e8e8;"
-    >
-      <v-app-bar-nav-icon @click="mobileDrawer = !mobileDrawer">
-        <v-icon>mdi-menu</v-icon>
-      </v-app-bar-nav-icon>
-
-      <div class="d-flex align-center">
-        <div class="brand-icon-small mr-2">
-          <v-icon color="white" size="16">mdi-heart</v-icon>
-        </div>
-        <span class="brand-title-small">Clean Heart</span>
-      </div>
-
-      <v-spacer />
-
-      <v-btn icon small @click="activeSection = 'dashboard'">
-        <v-icon size="20" color="#E53935">mdi-view-dashboard</v-icon>
-      </v-btn>
-    </v-app-bar>
-
-    <!-- Mobile Navigation Drawer -->
-    <v-navigation-drawer
-      v-model="mobileDrawer"
-      temporary
-      width="280"
-      class="mobile-drawer"
-    >
-      <div class="drawer-header">
-        <div class="brand-section">
-          <div class="brand-icon">
-            <v-icon color="white" size="22">mdi-heart</v-icon>
-          </div>
-          <div class="brand-text">
-            <div class="brand-title">Clean Heart</div>
-            <div class="brand-subtitle">Admin Panel</div>
-          </div>
-        </div>
-        <v-btn icon small dark @click="mobileDrawer = false">
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
-      </div>
-
-      <v-divider />
-
-      <v-list nav dense class="drawer-list">
-        <v-list-item
-          v-for="item in menuItems"
-          :key="item.id"
-          :class="{ 'active-nav-item': activeSection === item.id }"
-          @click="activeSection = item.id; mobileDrawer = false"
-          class="nav-item"
-        >
-          <v-list-item-icon class="mr-3">
-            <v-icon size="22" :color="activeSection === item.id ? '#E53935' : '#666'">
-              {{ item.icon }}
-            </v-icon>
-          </v-list-item-icon>
-          <v-list-item-title class="nav-title" :class="{ 'active-text': activeSection === item.id }">
-            {{ item.title }}
-          </v-list-item-title>
-          <v-badge
-            v-if="item.id === 'orders' && pendingOrdersCount > 0"
-            :content="pendingOrdersCount"
-            color="#E53935"
-            offset-x="8"
-            offset-y="8"
-            class="badge-mobile"
-          />
-        </v-list-item>
-      </v-list>
-
-      <div class="drawer-footer">
-        <div class="text-caption text-center grey--text">v2.0 &mdash; {{ currentYear }}</div>
-      </div>
-    </v-navigation-drawer>
-
+   
     <v-container fluid class="pt-0 px-3 px-md-6 pb-3 pb-md-6">
       <v-row>
         <!-- Desktop Sidebar -->
-        <v-col cols="12" md="3" lg="2" class="sidebar-col" v-if="$vuetify.breakpoint.mdAndUp">
+        <!-- <v-col cols="12" md="3" lg="2" class="sidebar-col" v-if="$vuetify.breakpoint.mdAndUp">
           <v-card class="sidebar-card" flat>
             <div class="brand-section">
               <div class="brand-icon">
@@ -127,12 +45,12 @@
               </v-list-item>
             </v-list>
           </v-card>
-        </v-col>
+        </v-col> -->
 
         <!-- Main Content -->
         <v-col cols="12" md="9" lg="10">
           <!-- Mobile Tab Navigation -->
-          <div v-if="$vuetify.breakpoint.smAndDown" class="mobile-tabs mb-4">
+          <div  class="mobile-tabs mb-4">
             <v-slide-group
               :value="menuItems.findIndex(i => i.id === activeSection)"
               @change="idx => { if(idx >= 0) activeSection = menuItems[idx].id }"
