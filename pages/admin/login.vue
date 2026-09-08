@@ -110,6 +110,7 @@
 export default {
   name: 'AdminLogin',
   layout: 'empty',
+  auth: false, // 🔥 Disable auth for login page
   data() {
     return {
       email: '',
@@ -122,7 +123,7 @@ export default {
     }
   },
   mounted() {
-    // Check if already logged in as admin
+    // 🔥 Check if already logged in as admin
     const user = this.$store.state.authUser
     const ADMIN_EMAILS = ['cleanheartt6@gmail.com']
     
@@ -179,6 +180,7 @@ export default {
           return
         }
 
+        // Set user in store
         await this.$store.dispatch('setAuthUser', {
           uid: user.uid,
           email: user.email,
@@ -186,8 +188,10 @@ export default {
           photoURL: user.photoURL
         })
 
+        // Redirect to admin dashboard
         this.$router.push('/admin')
         
+        // Show success message
         this.$nuxt.$emit('show-snackbar', {
           message: '✅ Welcome back, Admin!',
           color: '#E53935'
