@@ -97,7 +97,6 @@
                   hide-details
                   class="mb-3"
                   placeholder="John Doe"
-                  @keyup.enter.prevent
                 />
 
                 <v-text-field
@@ -112,7 +111,6 @@
                   required
                   :error-messages="emailErrors"
                   @input="emailErrors = ''"
-                  @keyup.enter.prevent
                 />
 
                 <v-textarea
@@ -124,7 +122,6 @@
                   rows="2"
                   class="mb-3"
                   placeholder="Leave a message of support..."
-                  @keyup.enter.prevent
                 />
 
                 <!-- Messages -->
@@ -334,10 +331,10 @@ export default {
         }
       }
     },
-    // 🚨 FIX: Only watch the amount specifically
-    'donationData.amount': {
+    donationData: {
+      deep: true,
       handler() {
-        // Re-render PayPal button only when amount changes
+        // Re-render PayPal button when amount changes
         if (this.paypalLoaded && this.firebaseUid) {
           this.initPayPalButton()
         }
@@ -441,10 +438,8 @@ export default {
       const container = this.$refs.paypalContainer
       if (!container) return
 
-      // 🚨 Prevent stacking if called rapidly
-      if (this.paypalButtonRendered && !this.loading) {
-        container.innerHTML = ''
-      }
+      // Clear previous button
+      container.innerHTML = ''
 
       // Don't render if amount is invalid
       if (!this.donationData.amount || this.donationData.amount < 1) {
