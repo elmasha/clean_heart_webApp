@@ -316,16 +316,34 @@ export default {
         // Reload user to get updated profile
         await user.reload()
 
-        // Sync user with database
-        await this.syncUserToDatabase(user)
+        // ✅ IMPORTANT: Sync user to database BEFORE redirecting
+        const dbUser = await this.syncUserToDatabase(user)
+
+        if (!dbUser) {
+          throw new Error('Database sync failed. Please try again.')
+        }
 
         this.showSnackbar('Account created successfully! Welcome to Clean Heart.', '#E53935')
+
+        // Prepare user data for store
+        const userData = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || this.fullName,
+          photoURL: user.photoURL,
+          phoneNumber: user.phoneNumber || this.phone,
+          dbUser: dbUser 
+        }
+
+        // Set user in store
+        await this.$store.dispatch('setAuthUser', userData)
+        await this.$store.dispatch('fetchCart', user.uid)
 
         // Redirect
         this.$router.push(this.redirect)
       } catch (error) {
         console.error('Registration error:', error)
-        this.showSnackbar(this.getAuthErrorMessage(error.code), 'error')
+        this.showSnackbar(error.message || this.getAuthErrorMessage(error.code), 'error')
       } finally {
         this.loading = false
       }
@@ -345,60 +363,86 @@ export default {
       }
     },
 
+    // ✅ UPDATED: Captures ALL data uniformly
     async syncUserToDatabase(user) {
       try {
+        // Determine the best source for the name
+        // 1. Direct user displayName (works for Google)
+        // 2. this.fullName (works for Email form)
+        // 3. Fallback to 'Anonymous'
+        const resolvedName = user.displayName || this.fullName || 'Anonymous'
+
+        // Ensure phone number is captured if provided, otherwise pull from Firebase user
+        const resolvedPhone = this.phone || user.phoneNumber || null
+
         const userData = {
           firebaseUid: user.uid,
-          email: user.email,
-          displayName: user.displayName || this.fullName,
-          phone: this.phone || user.phoneNumber || null,
-          photoURL: user.photoURL
+          email: user.email || null,
+          displayName: resolvedName,
+          phone: resolvedPhone,
+          photoURL: user.photoURL || null,
+          // ✅ Added these extra fields so the backend has everything
+          provider: user.providerData[0]?.providerId || null, // e.g., google.com or password
+          fullName: resolvedName 
         }
 
         const { data } = await this.$axios.post('/api/users/sync', userData)
-        if (data.success) {
-          console.log('User synced to database:', data.data)
+        
+        if (data.success && data.data) {
+          console.log('User synced to database successfully:', data.data)
           return data.data
+        } else {
+          console.error('Sync failed: Server did not return success', data)
+          return null
         }
-        return null
       } catch (error) {
         console.error('Sync user error:', error)
         return null
       }
     },
 
+    // ✅ UPDATED: Now requires DB sync success before moving on
     async handleLoginSuccess(user) {
       try {
-        // Sync user with database
+        // 1. Sync user with database (Wait for this to finish!)
         const dbUser = await this.syncUserToDatabase(user)
 
-        // Prepare user data for store
+        // 2. Throw error if sync failed to prevent redirecting without saving data
+        if (!dbUser) {
+          throw new Error('Unable to save user data to the server.')
+        }
+
+        // 3. Prepare user data for store
         const userData = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || this.fullName,
           photoURL: user.photoURL,
           phoneNumber: user.phoneNumber || this.phone,
-          dbUser: dbUser // Store full user data from database
+          dbUser: dbUser 
         }
 
-        // Set user in store
+        // 4. Set user in store
         await this.$store.dispatch('setAuthUser', userData)
 
-        // Fetch cart
+        // 5. Fetch cart
         await this.$store.dispatch('fetchCart', user.uid)
 
         this.showSnackbar(`Welcome${user.displayName ? ', ' + user.displayName : ''}!`, '#E53935')
 
-        // Redirect
+        // 6. ONLY redirect now that everything is confirmed saved
         this.$router.push(this.redirect)
       } catch (error) {
         console.error('Login handler error:', error)
-        this.showSnackbar('Failed to complete login. Please try again.', 'error')
+        this.showSnackbar(error.message || 'Failed to complete login. Please try again.', 'error')
+        
+        // Optional: If DB sync failed, sign out the user so they don't get stuck in a broken state
+        try { await this.$fire.auth.signOut() } catch(e) {}
       }
     },
 
     async sendOTP() {
+      // ... (Keep your existing OTP logic here) ...
       if (!this.phone) {
         this.showSnackbar('Please enter phone number', 'error')
         return
@@ -431,6 +475,7 @@ export default {
     },
 
     async verifyOTP() {
+      // ... (Keep your existing OTP logic here) ...
       if (!this.otp) {
         this.showSnackbar('Please enter OTP', 'error')
         return
@@ -445,13 +490,9 @@ export default {
       try {
         const result = await this.confirmationResult.confirm(this.otp)
         
-        // After phone verification, handle the user
-        // For registration, you might want to collect email separately
         if (this.isLogin) {
           await this.handleLoginSuccess(result.user)
         } else {
-          // For registration via phone, you'd typically collect email first
-          // For now, we'll treat it as login
           await this.handleLoginSuccess(result.user)
         }
         
@@ -540,7 +581,6 @@ export default {
   }
 }
 </script>
-
 <style scoped>
 #recaptcha-container {
   position: absolute;
