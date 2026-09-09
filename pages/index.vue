@@ -43,7 +43,7 @@
                 {{ info.title }}
               </nuxt-link>
               
-              <!-- Donate Link -->
+              <!-- 🔥 Donate Link - Goes to /donate page -->
               <nuxt-link
                 to="/donate"
                 class="d-block mt-3"
@@ -84,13 +84,14 @@
                   <v-icon left size="16">mdi-arrow-right</v-icon>
                   Shop Collection
                 </v-btn>
+                <!-- 🔥 Donate Button - Goes to /donate page -->
                 <v-btn
                   outlined
                   color="black"
                   height="52"
                   class="px-6"
                   style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
-                  @click="showDonationModal = true"
+                  to="/donate"
                 >
                   <v-icon left size="16">mdi-heart</v-icon>
                   Donate
@@ -141,7 +142,7 @@
                     </v-img>
                     
                     <div class="mt-3" style="font-size: 0.7rem; color: #999; letter-spacing: 2px; text-transform: uppercase;">
-                      {{ product.category_name || product.category || 'Clean Heart' }}
+                      {{ product.category_name || 'Clean Heart' }}
                     </div>
                     
                     <div class="mt-1" style="font-size: 1rem; font-weight: 700; color: #000;">
@@ -470,13 +471,7 @@
       </v-container>
     </section>
 
-    <!-- DONATION MODAL -->
-    <DonationModal 
-      v-model="showDonationModal" 
-      @donation-success="handleDonationSuccess" 
-    />
-
-    <!-- DARK NEWSLETTER POPUP -->
+    <!-- 🔥 NEWSLETTER POPUP - Shows on EVERY page load -->
     <v-dialog v-model="showNewsletterPopup" max-width="440" persistent>
       <v-card class="newsletter-popup-dark" flat>
         <div class="popup-header-dark">
@@ -556,7 +551,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- Floating Donate Button -->
+    <!-- 🔥 Floating Donate Button - Redirects to /donate page -->
     <v-btn
       fab
       color="#E53935"
@@ -565,7 +560,7 @@
       bottom
       right
       style="bottom: 80px; right: 16px; z-index: 100; box-shadow: 0 4px 20px rgba(229, 57, 53, 0.35);"
-      @click="showDonationModal = true"
+      to="/donate"
     >
       <v-icon>mdi-heart</v-icon>
     </v-btn>
@@ -575,12 +570,11 @@
 <script>
 import { mapState, mapGetters } from 'vuex'
 import logo from '@/assets/logo.jpg'
-import DonationModal from '@/components/DonationModal.vue'
 
 export default {
   name: 'IndexPage',
   components: {
-    DonationModal
+    // 🔥 Removed DonationModal import
   },
   data() {
     return {
@@ -597,16 +591,14 @@ export default {
         { title: 'Size Guide', to: '/size-guide' },
         { title: 'Contact', to: '/contact' },
       ],
-      // 🔥 Updated product filters to match category names
       productFilters: ['All', 'Hoodies', 'Sweatshirts', 'T-Shirts', 'Crop Tops'],
       
-      showDonationModal: false,
+      // 🔥 Removed showDonationModal
       
+      // Newsletter Popup
       showNewsletterPopup: false,
       popupEmail: '',
       popupLoading: false,
-      popupShown: false,
-      popupDisplayed: false,
     }
   },
   computed: {
@@ -627,13 +619,11 @@ export default {
       return this.carouselProducts[this.currentSlide] || this.carouselProducts[0]
     },
     
-    // 🔥 FIXED: Filter products by category
     filteredProducts() {
       if (this.activeFilter === 'All') {
         return this.products.slice(0, 8)
       }
       
-      // 🔥 Filter by category name (case insensitive)
       const filtered = this.products.filter(p => {
         const productCategory = p.category || p.category_name || p.category_slug || ''
         return productCategory.toLowerCase() === this.activeFilter.toLowerCase()
@@ -658,18 +648,14 @@ export default {
     // Start carousel autoplay
     this.startCarousel()
 
-    // Show newsletter popup after 15 seconds
-    const popupShownBefore = localStorage.getItem('cleanheart_popup_shown')
+    // Show newsletter popup after 5 seconds on EVERY page load
+    const hasSubscribed = localStorage.getItem('cleanheart_subscribed')
     
-    setTimeout(() => {
-      const hasSubscribed = localStorage.getItem('cleanheart_subscribed')
-      
-      if (!hasSubscribed && !popupShownBefore && !this.popupDisplayed) {
+    if (!hasSubscribed) {
+      setTimeout(() => {
         this.showNewsletterPopup = true
-        this.popupDisplayed = true
-        localStorage.setItem('cleanheart_popup_shown', 'true')
-      }
-    }, 15000)
+      }, 5000)
+    }
   },
   beforeDestroy() {
     if (this.slideInterval) {
@@ -692,10 +678,8 @@ export default {
       if (el) el.scrollIntoView({ behavior: 'smooth' })
     },
 
-    // 🔥 Apply filter
     applyFilter(filter) {
       this.activeFilter = filter
-      // Optionally scroll to products section
       this.scrollToProducts()
     },
 
@@ -804,13 +788,7 @@ export default {
       this.email = ''
     },
 
-    handleDonationSuccess(data) {
-      console.log('Donation successful:', data)
-      this.$nuxt.$emit('show-snackbar', {
-        message: `🎉 Thank you for your donation of Ksh ${data.amount}!`,
-        color: '#E53935'
-      })
-    },
+    // 🔥 Removed handleDonationSuccess
 
     closeNewsletterPopup() {
       this.showNewsletterPopup = false
@@ -837,7 +815,6 @@ export default {
 
       try {
         localStorage.setItem('cleanheart_subscribed', 'true')
-        localStorage.setItem('cleanheart_popup_shown', 'true')
         
         this.$nuxt.$emit('show-snackbar', {
           message: '🎉 Welcome to the Clean Heart family! Check your email for 10% off!',
