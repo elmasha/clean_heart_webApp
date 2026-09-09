@@ -1,225 +1,3 @@
-<template>
-  <div style="margin-top: 64px; min-height: calc(100vh - 64px); background: #fafafa;">
-    <v-container class="py-12">
-      <v-row justify="center">
-        <v-col cols="12" sm="8" md="5" lg="4">
-          <!-- Logo -->
-          <div class="text-center mb-8">
-            <div
-              class="d-flex align-center justify-center mx-auto mb-4"
-              style="width: 64px; height: 64px; border-radius: 50%; background: #000;"
-            >
-              <v-icon color="#E53935" size="32">mdi-heart</v-icon>
-            </div>
-            <h1 style="font-size: 1.5rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: #000;">
-              CLEAN HEART
-            </h1>
-            <p style="font-size: 0.85rem; color: #666; margin-top: 8px;">
-              {{ isLogin ? 'Sign in to your account' : 'Create your account' }}
-            </p>
-          </div>
-
-          <!-- Login/Register Card -->
-          <div style="border: 1px solid #f0f0f0; padding: 32px; background: #fff;">
-            <!-- Email/Password Form -->
-            <div v-if="loginMethod === 'email'">
-              <!-- Full Name - Only for Registration -->
-              <v-text-field
-                v-if="!isLogin"
-                v-model="fullName"
-                label="Full Name"
-                outlined
-                dense
-                hide-details
-                class="mb-4"
-                style="border-radius: 0;"
-                prepend-inner-icon="mdi-account-outline"
-                required
-              />
-
-              <v-text-field
-                v-model="email"
-                label="Email"
-                outlined
-                dense
-                hide-details
-                class="mb-4"
-                style="border-radius: 0;"
-                type="email"
-                prepend-inner-icon="mdi-email-outline"
-                @keyup.enter="handleSubmit"
-              />
-
-              <v-text-field
-                v-model="password"
-                label="Password"
-                outlined
-                dense
-                hide-details
-                class="mb-2"
-                style="border-radius: 0;"
-                :type="showPassword ? 'text' : 'password'"
-                prepend-inner-icon="mdi-lock-outline"
-                :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-                @click:append="showPassword = !showPassword"
-                @keyup.enter="handleSubmit"
-              />
-
-              <!-- Confirm Password - Only for Registration -->
-              <v-text-field
-                v-if="!isLogin"
-                v-model="confirmPassword"
-                label="Confirm Password"
-                outlined
-                dense
-                hide-details
-                class="mb-4"
-                style="border-radius: 0;"
-                :type="showPassword ? 'text' : 'password'"
-                prepend-inner-icon="mdi-lock-check-outline"
-                @keyup.enter="handleSubmit"
-              />
-
-              <!-- Forgot Password - Only for Login -->
-              <div v-if="isLogin" class="d-flex justify-end mb-6">
-                <nuxt-link to="/forgot-password" style="font-size: 0.75rem; color: #E53935; text-decoration: none;">
-                  Forgot password?
-                </nuxt-link>
-              </div>
-
-              <!-- Phone Number - Only for Registration -->
-              <v-text-field
-                v-if="!isLogin"
-                v-model="phone"
-                label="Phone Number (Optional)"
-                outlined
-                dense
-                hide-details
-                class="mb-4"
-                style="border-radius: 0;"
-                placeholder="+254 7XX XXX XXX"
-                prepend-inner-icon="mdi-phone-outline"
-              />
-
-              <v-btn
-                block
-                color="black"
-                dark
-                height="48"
-                style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
-                :loading="loading"
-                @click="handleSubmit"
-              >
-                {{ isLogin ? 'Sign In' : 'Create Account' }}
-              </v-btn>
-            </div>
-
-            <!-- Phone OTP Form -->
-            <div v-if="loginMethod === 'phone'">
-              <v-text-field
-                v-model="phone"
-                label="Phone Number"
-                outlined
-                dense
-                hide-details
-                class="mb-4"
-                style="border-radius: 0;"
-                placeholder="+254 7XX XXX XXX"
-                prepend-inner-icon="mdi-phone-outline"
-                @keyup.enter="sendOTP"
-              />
-              <v-btn
-                v-if="!otpSent"
-                block
-                color="black"
-                dark
-                height="48"
-                style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
-                :loading="loading"
-                @click="sendOTP"
-              >
-                Send Code
-              </v-btn>
-              <div v-else>
-                <v-text-field
-                  v-model="otp"
-                  label="Enter OTP"
-                  outlined
-                  dense
-                  hide-details
-                  class="mb-4"
-                  style="border-radius: 0;"
-                  maxlength="6"
-                  prepend-inner-icon="mdi-numeric"
-                  @keyup.enter="verifyOTP"
-                />
-                <v-btn
-                  block
-                  color="black"
-                  dark
-                  height="48"
-                  style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
-                  :loading="loading"
-                  @click="verifyOTP"
-                >
-                  Verify & {{ isLogin ? 'Sign In' : 'Register' }}
-                </v-btn>
-                <div class="text-center mt-3">
-                  <v-btn text small color="#E53935" style="font-size: 0.7rem; text-transform: uppercase;" @click="resendOTP">
-                    Resend Code
-                  </v-btn>
-                </div>
-              </div>
-            </div>
-
-            <!-- Divider -->
-            <div class="d-flex align-center my-6">
-              <v-divider />
-              <span class="mx-4" style="font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 1px;">or</span>
-              <v-divider />
-            </div>
-
-            <!-- Social Login -->
-            <v-btn
-              block
-              outlined
-              color="#000"
-              height="48"
-              class="mb-3"
-              style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem; font-weight: 600;"
-              :loading="googleLoading"
-              @click="loginWithGoogle"
-            >
-              <v-icon left size="18" color="#E53935">mdi-google</v-icon>
-              {{ isLogin ? 'Continue with Google' : 'Sign up with Google' }}
-            </v-btn>
-
-            <!-- Toggle Login Method -->
-            <div class="text-center mt-4">
-              <v-btn text small color="#666" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px;" @click="toggleLoginMethod">
-                {{ loginMethod === 'email' ? 'Use phone number instead' : 'Use email instead' }}
-              </v-btn>
-            </div>
-          </div>
-
-          <!-- Toggle Login/Register -->
-          <div class="text-center mt-6">
-            <span style="font-size: 0.85rem; color: #666;">
-              {{ isLogin ? "Don't have an account?" : "Already have an account?" }}
-            </span>
-            <v-btn text small style="font-size: 0.85rem; color: #E53935; font-weight: 600; text-decoration: none; text-transform: none;" @click="toggleAuthMode">
-              {{ isLogin ? 'Create one' : 'Sign in' }}
-            </v-btn>
-          </div>
-        </v-col>
-      </v-row>
-    </v-container>
-
-    <!-- Hidden reCAPTCHA container for phone auth -->
-    <div id="recaptcha-container"></div>
-  </div>
-</template>
-
 <script>
 export default {
   name: 'LoginPage',
@@ -227,6 +5,7 @@ export default {
     return {
       isLogin: true,
       loginMethod: 'email',
+      emailPanelOpen: 0, // 🚨 NEW: Keeps the email panel open by default
       email: '',
       password: '',
       confirmPassword: '',
@@ -304,19 +83,15 @@ export default {
 
       this.loading = true
       try {
-        // Create user with email and password
         const userCredential = await this.$fire.auth.createUserWithEmailAndPassword(this.email, this.password)
         const user = userCredential.user
 
-        // Update profile with display name
         await user.updateProfile({
           displayName: this.fullName
         })
 
-        // Reload user to get updated profile
         await user.reload()
 
-        // ✅ IMPORTANT: Sync user to database BEFORE redirecting
         const dbUser = await this.syncUserToDatabase(user)
 
         if (!dbUser) {
@@ -325,7 +100,6 @@ export default {
 
         this.showSnackbar('Account created successfully! Welcome to Clean Heart.', '#E53935')
 
-        // Prepare user data for store
         const userData = {
           uid: user.uid,
           email: user.email,
@@ -335,11 +109,9 @@ export default {
           dbUser: dbUser 
         }
 
-        // Set user in store
         await this.$store.dispatch('setAuthUser', userData)
         await this.$store.dispatch('fetchCart', user.uid)
 
-        // Redirect
         this.$router.push(this.redirect)
       } catch (error) {
         console.error('Registration error:', error)
@@ -363,16 +135,9 @@ export default {
       }
     },
 
-    // ✅ UPDATED: Captures ALL data uniformly
     async syncUserToDatabase(user) {
       try {
-        // Determine the best source for the name
-        // 1. Direct user displayName (works for Google)
-        // 2. this.fullName (works for Email form)
-        // 3. Fallback to 'Anonymous'
         const resolvedName = user.displayName || this.fullName || 'Anonymous'
-
-        // Ensure phone number is captured if provided, otherwise pull from Firebase user
         const resolvedPhone = this.phone || user.phoneNumber || null
 
         const userData = {
@@ -381,8 +146,7 @@ export default {
           displayName: resolvedName,
           phone: resolvedPhone,
           photoURL: user.photoURL || null,
-          // ✅ Added these extra fields so the backend has everything
-          provider: user.providerData[0]?.providerId || null, // e.g., google.com or password
+          provider: user.providerData[0]?.providerId || null,
           fullName: resolvedName 
         }
 
@@ -401,18 +165,14 @@ export default {
       }
     },
 
-    // ✅ UPDATED: Now requires DB sync success before moving on
     async handleLoginSuccess(user) {
       try {
-        // 1. Sync user with database (Wait for this to finish!)
         const dbUser = await this.syncUserToDatabase(user)
 
-        // 2. Throw error if sync failed to prevent redirecting without saving data
         if (!dbUser) {
           throw new Error('Unable to save user data to the server.')
         }
 
-        // 3. Prepare user data for store
         const userData = {
           uid: user.uid,
           email: user.email,
@@ -422,27 +182,20 @@ export default {
           dbUser: dbUser 
         }
 
-        // 4. Set user in store
         await this.$store.dispatch('setAuthUser', userData)
-
-        // 5. Fetch cart
         await this.$store.dispatch('fetchCart', user.uid)
 
         this.showSnackbar(`Welcome${user.displayName ? ', ' + user.displayName : ''}!`, '#E53935')
 
-        // 6. ONLY redirect now that everything is confirmed saved
         this.$router.push(this.redirect)
       } catch (error) {
         console.error('Login handler error:', error)
         this.showSnackbar(error.message || 'Failed to complete login. Please try again.', 'error')
-        
-        // Optional: If DB sync failed, sign out the user so they don't get stuck in a broken state
         try { await this.$fire.auth.signOut() } catch(e) {}
       }
     },
 
     async sendOTP() {
-      // ... (Keep your existing OTP logic here) ...
       if (!this.phone) {
         this.showSnackbar('Please enter phone number', 'error')
         return
@@ -475,7 +228,6 @@ export default {
     },
 
     async verifyOTP() {
-      // ... (Keep your existing OTP logic here) ...
       if (!this.otp) {
         this.showSnackbar('Please enter OTP', 'error')
         return
@@ -547,7 +299,6 @@ export default {
 
     getAuthErrorMessage(code) {
       const messages = {
-        // Login errors
         'auth/invalid-email': 'Invalid email address',
         'auth/user-disabled': 'This account has been disabled',
         'auth/user-not-found': 'No account found with this email',
@@ -555,17 +306,14 @@ export default {
         'auth/invalid-credential': 'Invalid email or password',
         'auth/too-many-requests': 'Too many attempts. Please try again later',
         
-        // Registration errors
         'auth/email-already-in-use': 'This email is already registered',
         'auth/weak-password': 'Password is too weak. Use at least 6 characters',
         'auth/operation-not-allowed': 'Email/password accounts are not enabled',
         
-        // Social login errors
         'auth/popup-closed-by-user': 'Sign-in popup was closed',
         'auth/cancelled-popup-request': 'Sign-in was cancelled',
         'auth/account-exists-with-different-credential': 'An account already exists with this email. Please sign in using a different method.',
         
-        // Phone errors
         'auth/invalid-phone-number': 'Invalid phone number. Please use format: +254XXXXXXXXX',
         'auth/missing-phone-number': 'Please enter a phone number',
         'auth/invalid-verification-code': 'Invalid verification code',
@@ -582,6 +330,9 @@ export default {
 }
 </script>
 <style scoped>
+.google-btn .v-icon {
+  color: #EA4335 !important; /* Forces the red/blue/green Google colors */
+}
 #recaptcha-container {
   position: absolute;
   bottom: 0;
