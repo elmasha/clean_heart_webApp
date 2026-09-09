@@ -34,10 +34,12 @@
             <!-- Image -->
             <v-col cols="12" md="6">
               <div style="background: #f5f5f5; aspect-ratio: 1; position: relative;">
+                <!-- 🔥 Main Product Image - Changes with color -->
                 <v-img
-                  :src="productImage"
+                  :src="currentProductImage"
                   contain
                   style="width: 100%; height: 100%;"
+                  :key="currentProductImage"
                 >
                   <template #placeholder>
                     <div class="d-flex align-center justify-center fill-height">
@@ -50,12 +52,33 @@
                     </div>
                   </template>
                 </v-img>
+                
+                <!-- Badge -->
                 <div
                   v-if="product.is_new || product.is_bestseller"
                   class="d-flex align-center justify-center"
                   style="position: absolute; top: 16px; left: 16px; background: #E53935; color: white; font-size: 0.7rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 6px 14px; z-index: 2;"
                 >
                   {{ product.is_new ? 'New' : 'Best Seller' }}
+                </div>
+
+                <!-- Color Thumbnails Below Image -->
+                <div v-if="colorVariants.length > 1" class="color-thumbnails" style="position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 5; background: rgba(255,255,255,0.9); padding: 8px 16px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
+                  <div
+                    v-for="variant in colorVariants"
+                    :key="variant.id"
+                    class="color-thumb"
+                    :class="{ 'color-thumb-active': selectedColor === variant.color }"
+                    @click="selectedColor = variant.color; selectedColorVariantId = variant.id"
+                    style="width: 40px; height: 40px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; overflow: hidden; transition: all 0.2s ease;"
+                    :style="selectedColor === variant.color ? 'border-color: #E53935;' : ''"
+                  >
+                    <v-img
+                      :src="variant.image_url || productImage"
+                      contain
+                      style="width: 100%; height: 100%;"
+                    />
+                  </div>
                 </div>
               </div>
             </v-col>
@@ -69,12 +92,12 @@
                 {{ product.name }}
               </h1>
               
-              <!-- ✅ Price with Ksh -->
+              <!-- Price with Ksh -->
               <div style="font-size: 1.5rem; font-weight: 700; color: #E53935; margin-bottom: 24px;">
                 Ksh {{ parseFloat(product.price || product.base_price).toFixed(2) }}
               </div>
               
-              <!-- ✅ Compare price if available -->
+              <!-- Compare price if available -->
               <div v-if="product.compare_price" style="font-size: 1rem; color: #999; text-decoration: line-through; margin-top: -16px; margin-bottom: 24px;">
                 Ksh {{ parseFloat(product.compare_price).toFixed(2) }}
               </div>
@@ -240,6 +263,7 @@ export default {
       qty: 1,
       selectedSize: 'M',
       selectedColor: 'Black',
+      selectedColorVariantId: null,
       defaultSizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
       defaultColors: [
         { name: 'Black', hex: '#000000' },
@@ -273,7 +297,29 @@ export default {
       }
       return this.defaultColors
     },
-    
+
+    // 🔥 Get color variants with images
+    colorVariants() {
+      if (!this.product || !this.product.variants || !this.product.variants.all) {
+        return []
+      }
+      
+      // Get unique color variants with images
+      const colorMap = new Map()
+      this.product.variants.all.forEach(v => {
+        if (v.color && !colorMap.has(v.color)) {
+          colorMap.set(v.color, {
+            id: v.id,
+            color: v.color,
+            image_url: v.image_url || this.product.image_url || '/placeholder-product.jpg'
+          })
+        }
+      })
+      
+      return Array.from(colorMap.values())
+    },
+
+    // 🔥 Main product image - changes based on selected color
     productImage() {
       if (this.product) {
         if (this.product.image_url) return this.product.image_url
@@ -283,6 +329,22 @@ export default {
         }
       }
       return '/placeholder-product.jpg'
+    },
+
+    // 🔥 Current image based on selected color
+    currentProductImage() {
+      if (!this.product) return '/placeholder-product.jpg'
+      
+      // If we have color variants, find the image for selected color
+      if (this.colorVariants.length > 0) {
+        const selectedVariant = this.colorVariants.find(v => v.color === this.selectedColor)
+        if (selectedVariant && selectedVariant.image_url) {
+          return selectedVariant.image_url
+        }
+      }
+      
+      // Fallback to product image
+      return this.productImage
     },
 
     relatedProducts() {
@@ -366,15 +428,21 @@ export default {
         this.selectedColor = this.availableColors[0].name
       }
       
+      // Set selected color variant ID
+      if (this.colorVariants.length > 0) {
+        this.selectedColorVariantId = this.colorVariants[0].id
+      }
+      
       console.log('Selections initialized:', {
         size: this.selectedSize,
         color: this.selectedColor,
         availableSizes: this.availableSizes,
-        availableColors: this.availableColors
+        availableColors: this.availableColors,
+        colorVariants: this.colorVariants
       })
     },
     
-    // ✅ Helper to find variant ID from selected size and color
+    // Helper to find variant ID from selected size and color
     getSelectedVariantId() {
       if (!this.product || !this.product.variants || !this.product.variants.all) {
         return null
@@ -401,7 +469,7 @@ export default {
       return null
     },
 
-    // ✅ Check if product is in wishlist
+    // Check if product is in wishlist
     async checkWishlist() {
       if (!this.firebaseUid || !this.product) return
       
@@ -418,7 +486,7 @@ export default {
       }
     },
 
-    // ✅ Toggle wishlist
+    // Toggle wishlist
     async toggleWishlist() {
       if (!this.firebaseUid) {
         this.$router.push(`/login?redirect=/product/${this.product.id}`)
@@ -461,7 +529,7 @@ export default {
         return
       }
       
-      // ✅ Find the variant ID
+      // Find the variant ID
       const variantId = this.getSelectedVariantId()
       
       if (!variantId) {
@@ -482,13 +550,12 @@ export default {
           qty: this.qty
         })
         
-        // ✅ Pass variantId directly to the action
         const result = await this.$store.dispatch('addToCart', {
           firebaseUid: this.firebaseUid,
           productId: this.product.id,
           qty: this.qty,
           variant: variantString,
-          variantId: variantId // ✅ This is the key fix!
+          variantId: variantId
         })
         
         console.log('Add to cart result:', result)
@@ -521,5 +588,25 @@ export default {
 <style scoped>
 .border {
   border: 1px solid #e0e0e0 !important;
+}
+
+/* Color Thumbnails */
+.color-thumbnails {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(8px);
+}
+
+.color-thumb {
+  transition: all 0.2s ease;
+}
+
+.color-thumb:hover {
+  transform: scale(1.1);
+}
+
+.color-thumb-active {
+  border-color: #E53935 !important;
+  transform: scale(1.1);
+  box-shadow: 0 0 16px rgba(229, 57, 53, 0.3);
 }
 </style>

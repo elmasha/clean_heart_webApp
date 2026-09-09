@@ -4,7 +4,7 @@ export default {
   ssr: false,
 
   head: {
-    titleTemplate: '%s | Clean Heart',
+    titleTemplate: '%s ',
     title: 'Clean Heart',
     htmlAttrs: { lang: 'en' },
     meta: [
