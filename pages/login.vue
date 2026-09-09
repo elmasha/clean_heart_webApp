@@ -1,3 +1,225 @@
+<template>
+  <div style="margin-top: 64px; min-height: calc(100vh - 64px); background: #fafafa;">
+    <v-container class="py-12">
+      <v-row justify="center">
+        <v-col cols="12" sm="8" md="5" lg="4">
+          <!-- Logo -->
+          <div class="text-center mb-8">
+            <div
+              class="d-flex align-center justify-center mx-auto mb-4"
+              style="width: 64px; height: 64px; border-radius: 50%; background: #000;"
+            >
+              <v-icon color="#E53935" size="32">mdi-heart</v-icon>
+            </div>
+            <h1 style="font-size: 1.5rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: #000;">
+              CLEAN HEART
+            </h1>
+            <p style="font-size: 0.85rem; color: #666; margin-top: 8px;">
+              {{ isLogin ? 'Sign in to your account' : 'Create your account' }}
+            </p>
+          </div>
+
+          <!-- Login/Register Card -->
+          <div style="border: 1px solid #f0f0f0; padding: 32px; background: #fff;">
+            
+            <!-- 🌟 GOOGLE DOMINANCE SECTION -->
+            <div class="text-center mb-6">
+              <v-chip small color="#E53935" text-color="white" class="mb-3" style="font-size: 0.65rem; letter-spacing: 1px;">
+                MOST POPULAR
+              </v-chip>
+              <v-btn
+                block
+                color="white"
+                height="52"
+                class="google-btn"
+                style="border-radius: 4px; border: 1px solid #dadce0; text-transform: none; font-size: 0.95rem; font-weight: 600; color: #3c4043; box-shadow: 0 1px 3px rgba(0,0,0,0.08);"
+                :loading="googleLoading"
+                @click="loginWithGoogle"
+              >
+                <v-icon left size="24" color="#E53935" class="mr-2">mdi-google</v-icon>
+                {{ isLogin ? 'Continue with Google' : 'Sign up with Google' }}
+              </v-btn>
+              <div class="mt-2" style="font-size: 0.75rem; color: #999;">
+                Instant access. No password required.
+              </div>
+            </div>
+
+            <!-- Divider -->
+            <div class="d-flex align-center my-6">
+              <v-divider />
+              <span class="mx-4" style="font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 1px;">or use email</span>
+              <v-divider />
+            </div>
+
+            <!-- 📧 EMAIL/PASSWORD SECONDARY FORM -->
+            <v-expansion-panels v-model="emailPanelOpen" flat accordion>
+              <v-expansion-panel>
+                <v-expansion-panel-header class="pa-0" style="min-height: 48px;">
+                  <span style="font-size: 0.9rem; font-weight: 600; color: #333; text-transform: uppercase; letter-spacing: 1px;">
+                    {{ isLogin ? 'Sign in with Email' : 'Register with Email' }}
+                  </span>
+                  <template v-slot:actions>
+                    <v-icon color="#E53935">mdi-chevron-down</v-icon>
+                  </template>
+                </v-expansion-panel-header>
+                <v-expansion-panel-content class="pt-4">
+                  
+                  <!-- Full Name - Only for Registration -->
+                  <v-text-field
+                    v-if="!isLogin"
+                    v-model="fullName"
+                    label="Full Name"
+                    outlined
+                    dense
+                    hide-details
+                    class="mb-4"
+                    style="border-radius: 0;"
+                    prepend-inner-icon="mdi-account-outline"
+                    required
+                  />
+
+                  <v-text-field
+                    v-model="email"
+                    label="Email"
+                    outlined
+                    dense
+                    hide-details
+                    class="mb-4"
+                    style="border-radius: 0;"
+                    type="email"
+                    prepend-inner-icon="mdi-email-outline"
+                    @keyup.enter="handleSubmit"
+                  />
+
+                  <v-text-field
+                    v-model="password"
+                    label="Password"
+                    outlined
+                    dense
+                    hide-details
+                    class="mb-2"
+                    style="border-radius: 0;"
+                    :type="showPassword ? 'text' : 'password'"
+                    prepend-inner-icon="mdi-lock-outline"
+                    :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                    @click:append="showPassword = !showPassword"
+                    @keyup.enter="handleSubmit"
+                  />
+
+                  <!-- Confirm Password - Only for Registration -->
+                  <v-text-field
+                    v-if="!isLogin"
+                    v-model="confirmPassword"
+                    label="Confirm Password"
+                    outlined
+                    dense
+                    hide-details
+                    class="mb-4"
+                    style="border-radius: 0;"
+                    :type="showPassword ? 'text' : 'password'"
+                    prepend-inner-icon="mdi-lock-check-outline"
+                    @keyup.enter="handleSubmit"
+                  />
+
+                  <!-- Forgot Password - Only for Login -->
+                  <div v-if="isLogin" class="d-flex justify-end mb-4">
+                    <nuxt-link to="/forgot-password" style="font-size: 0.75rem; color: #E53935; text-decoration: none;">
+                      Forgot password?
+                    </nuxt-link>
+                  </div>
+
+                  <v-btn
+                    block
+                    color="black"
+                    dark
+                    height="44"
+                    style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
+                    :loading="loading"
+                    @click="handleSubmit"
+                  >
+                    {{ isLogin ? 'Sign In' : 'Create Account' }}
+                  </v-btn>
+                </v-expansion-panel-content>
+              </v-expansion-panel>
+            </v-expansion-panels>
+
+            <!-- Phone OTP (Hidden further down if absolutely necessary) -->
+            <div v-if="loginMethod === 'phone'" class="mt-4">
+              <v-divider class="my-4" />
+              <v-text-field
+                v-model="phone"
+                label="Phone Number"
+                outlined
+                dense
+                hide-details
+                class="mb-4"
+                style="border-radius: 0;"
+                placeholder="+254 7XX XXX XXX"
+                prepend-inner-icon="mdi-phone-outline"
+                @keyup.enter="sendOTP"
+              />
+              <v-btn
+                v-if="!otpSent"
+                block
+                color="black"
+                dark
+                height="44"
+                style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
+                :loading="loading"
+                @click="sendOTP"
+              >
+                Send Code
+              </v-btn>
+              <div v-else>
+                <v-text-field
+                  v-model="otp"
+                  label="Enter OTP"
+                  outlined
+                  dense
+                  hide-details
+                  class="mb-4"
+                  style="border-radius: 0;"
+                  maxlength="6"
+                  prepend-inner-icon="mdi-numeric"
+                  @keyup.enter="verifyOTP"
+                />
+                <v-btn
+                  block
+                  color="black"
+                  dark
+                  height="44"
+                  style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
+                  :loading="loading"
+                  @click="verifyOTP"
+                >
+                  Verify & {{ isLogin ? 'Sign In' : 'Register' }}
+                </v-btn>
+                <div class="text-center mt-3">
+                  <v-btn text small color="#E53935" style="font-size: 0.7rem; text-transform: uppercase;" @click="resendOTP">
+                    Resend Code
+                  </v-btn>
+                </div>
+              </div>
+            </div>
+
+            <!-- Toggle Login/Register -->
+            <div class="text-center mt-6">
+              <span style="font-size: 0.85rem; color: #666;">
+                {{ isLogin ? "Don't have an account?" : "Already have an account?" }}
+              </span>
+              <v-btn text small style="font-size: 0.85rem; color: #E53935; font-weight: 600; text-decoration: none; text-transform: none;" @click="toggleAuthMode">
+                {{ isLogin ? 'Create one' : 'Sign in' }}
+              </v-btn>
+            </div>
+          </div>
+        </v-col>
+      </v-row>
+    </v-container>
+
+    <!-- Hidden reCAPTCHA container for phone auth -->
+    <div id="recaptcha-container"></div>
+  </div>
+</template>
 <script>
 export default {
   name: 'LoginPage',
