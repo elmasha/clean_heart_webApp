@@ -97,6 +97,7 @@
                   hide-details
                   class="mb-3"
                   placeholder="John Doe"
+                  @keyup.enter.prevent
                 />
 
                 <v-text-field
@@ -111,20 +112,7 @@
                   required
                   :error-messages="emailErrors"
                   @input="emailErrors = ''"
-                />
-
-                <v-text-field
-                  v-model="donationData.phone"
-                  label="Phone Number *"
-                  outlined
-                  dense
-                  hide-details
-                  class="mb-3"
-                  placeholder="07XX XXX XXX"
-                  required
-                  :error-messages="phoneErrors"
-                  @input="phoneErrors = ''"
-                  prepend-inner-icon="mdi-phone"
+                  @keyup.enter.prevent
                 />
 
                 <v-textarea
@@ -136,17 +124,7 @@
                   rows="2"
                   class="mb-3"
                   placeholder="Leave a message of support..."
-                />
-
-                <!-- Payment Method -->
-                <v-select
-                  v-model="donationData.payment_method"
-                  :items="paymentMethods"
-                  label="Payment Method"
-                  outlined
-                  dense
-                  hide-details
-                  class="mb-4"
+                  @keyup.enter.prevent
                 />
 
                 <!-- Messages -->
@@ -180,28 +158,19 @@
                   </div>
                 </v-alert>
 
-                <!-- Submit Button -->
-                <v-btn
-                  block
+                <!-- 🔥 PayPal Button Container -->
+                <div id="paypal-button-container" class="mt-4" ref="paypalContainer"></div>
+
+                <!-- Loading State -->
+                <v-progress-circular
+                  v-if="loading"
+                  indeterminate
                   color="#E53935"
-                  dark
-                  depressed
-                  height="52"
-                  class="donate-btn"
-                  :loading="loading"
-                  type="submit"
-                >
-                  <v-icon left size="18" v-if="!loading">mdi-heart</v-icon>
-                  {{ loading ? 'Processing...' : 'Donate Ksh ' + (donationData.amount || 0) }}
-                </v-btn>
+                  class="d-block mx-auto my-4"
+                  size="40"
+                />
 
-                <div class="text-center mt-3">
-                  <span class="secure-text">
-                    <v-icon size="14" color="#999">mdi-shield-lock</v-icon>
-                    Secure payment via M-Pesa
-                  </span>
-                </div>
-
+                <!-- Back Link -->
                 <div class="text-center mt-4">
                   <nuxt-link to="/" class="back-link">
                     <v-icon size="16" class="mr-1">mdi-arrow-left</v-icon>
@@ -317,49 +286,34 @@
         </v-col>
       </v-row>
     </v-container>
-
-    <!-- Donation Modal -->
-    <DonationModal 
-      v-model="showDonationModal" 
-      @donation-success="handleDonationSuccess" 
-    />
   </div>
 </template>
 
 <script>
 import { mapState } from 'vuex'
-import DonationModal from '@/components/DonationModal.vue'
 
 export default {
   name: 'DonatePage',
-  components: {
-    DonationModal
-  },
   data() {
     return {
       loading: false,
       loadingDonors: false,
-      showDonationModal: false,
       successMessage: '',
       errorMessage: '',
       emailErrors: '',
-      phoneErrors: '',
       customAmount: '',
       totalDonations: 0,
       totalDonors: 0,
       topDonors: [],
+      paypalLoaded: false,
+      paypalButtonRendered: false,
       presetAmounts: [100, 250, 500, 1000, 2500],
-      paymentMethods: [
-        { text: 'M-Pesa', value: 'mpesa' },
-        { text: 'Card (Coming Soon)', value: 'card', disabled: true }
-      ],
       donationData: {
         amount: 100,
         full_name: '',
         email: '',
-        phone: '',
         message: '',
-        payment_method: 'mpesa'
+        payment_method: 'paypal'
       }
     }
   },
@@ -371,6 +325,25 @@ export default {
       return this.authUser?.uid || null
     }
   },
+  watch: {
+    firebaseUid: {
+      immediate: true,
+      handler(newUid) {
+        if (newUid) {
+          this.loadPayPalScript()
+        }
+      }
+    },
+    // 🚨 FIX: Only watch the amount specifically
+    'donationData.amount': {
+      handler() {
+        // Re-render PayPal button only when amount changes
+        if (this.paypalLoaded && this.firebaseUid) {
+          this.initPayPalButton()
+        }
+      }
+    }
+  },
   mounted() {
     // Pre-fill user info if logged in
     if (this.authUser) {
@@ -378,6 +351,9 @@ export default {
       this.donationData.full_name = this.authUser.displayName || ''
     }
     this.fetchDonationStats()
+
+    // Check if we're coming back from PayPal
+    this.checkPayPalReturn()
   },
   methods: {
     formatMoney(value) {
@@ -407,85 +383,216 @@ export default {
       }
     },
 
-    async submitDonation() {
-      this.errorMessage = ''
-      this.successMessage = ''
-      this.emailErrors = ''
-      this.phoneErrors = ''
+    checkPayPalReturn() {
+      const { status, orderId, donation } = this.$route.query
+    
+      if (status === 'success' && orderId) {
+        this.successMessage = `✅ Thank you for your generous donation! Your payment has been confirmed.`
+        this.$nuxt.$emit('show-snackbar', {
+          message: '🎉 Thank you for your generous donation!',
+          color: '#E53935'
+        })
+        this.fetchDonationStats()
+        // Clear query params
+        this.$router.replace({ query: {} })
+      } else if (status === 'cancelled') {
+        this.errorMessage = 'Donation was cancelled. You can try again anytime.'
+      } else if (status === 'error') {
+        this.errorMessage = this.$route.query.message || 'There was an error processing your donation. Please try again.'
+      }
+    },
 
-      // Validate
-      if (!this.donationData.amount || this.donationData.amount < 1) {
-        this.errorMessage = 'Please enter a valid donation amount'
+    loadPayPalScript() {
+      if (document.querySelector('#paypal-script')) {
+        if (typeof paypal !== 'undefined') {
+          this.paypalLoaded = true
+          this.initPayPalButton()
+        }
         return
       }
 
-      if (!this.donationData.email) {
-        this.emailErrors = 'Email is required'
-        return
+      const clientId = process.env.PAYPAL_CLIENT_ID || 'sb' // Use 'sb' for sandbox testing
+    
+      const script = document.createElement('script')
+      script.id = 'paypal-script'
+      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&intent=capture&components=buttons`
+      script.onload = () => {
+        this.paypalLoaded = true
+        this.initPayPalButton()
       }
-
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.donationData.email)) {
-        this.emailErrors = 'Please enter a valid email'
-        return
+      script.onerror = () => {
+        console.error('Failed to load PayPal SDK')
+        this.errorMessage = 'Failed to load PayPal. Please refresh and try again.'
       }
+      document.body.appendChild(script)
+    },
 
-      if (!this.donationData.phone) {
-        this.phoneErrors = 'Phone number is required'
+    async initPayPalButton() {
+      if (typeof paypal === 'undefined') {
+        console.error('PayPal SDK not loaded')
         return
       }
 
       if (!this.firebaseUid) {
-        this.errorMessage = 'Please log in to donate'
         return
       }
+
+      // Clear container
+      const container = this.$refs.paypalContainer
+      if (!container) return
+
+      // 🚨 Prevent stacking if called rapidly
+      if (this.paypalButtonRendered && !this.loading) {
+        container.innerHTML = ''
+      }
+
+      // Don't render if amount is invalid
+      if (!this.donationData.amount || this.donationData.amount < 1) {
+        return
+      }
+
+      // Convert KES to USD (approximate - adjust rate as needed)
+      const usdAmount = (this.donationData.amount / 150).toFixed(2) // ~150 KES = 1 USD
 
       this.loading = true
 
       try {
-        const response = await this.$axios.post('/api/donations/create', {
+        // First, create the donation in our backend
+        const donationResponse = await this.$axios.post('/api/donations/create', {
           firebaseUid: this.firebaseUid,
           email: this.donationData.email,
-          full_name: this.donationData.full_name,
+          full_name: this.donationData.full_name || 'Anonymous',
           amount: this.donationData.amount,
           message: this.donationData.message,
-          phone: this.donationData.phone,
-          payment_method: this.donationData.payment_method
+          payment_method: 'paypal',
+          currency: 'USD'
         })
 
-        if (response.data.success) {
-          this.successMessage = '✅ Thank you for your generous donation! Check your phone for M-Pesa STK push.'
-          
-          // Reset form
-          this.donationData.amount = 100
-          this.donationData.message = ''
-          this.customAmount = ''
-          
-          // Refresh stats
-          await this.fetchDonationStats()
-          
-          // Show success snackbar
-          this.$nuxt.$emit('show-snackbar', {
-            message: `🎉 Thank you for your donation of Ksh ${this.donationData.amount}!`,
-            color: '#E53935'
-          })
-        } else {
-          this.errorMessage = response.data.error || 'Failed to process donation'
+        if (!donationResponse.data.success) {
+          this.errorMessage = donationResponse.data.error || 'Failed to create donation'
+          this.loading = false
+          return
         }
-      } catch (error) {
-        console.error('Donation error:', error)
-        this.errorMessage = error.response?.data?.error || 'Something went wrong. Please try again.'
-      } finally {
+
+        const donationId = donationResponse.data.data.donationId
+
+        // Render PayPal button
+        paypal.Buttons({
+          style: {
+            layout: 'vertical',
+            color: 'blue',
+            shape: 'rect',
+            label: 'donate',
+            height: 45,
+            tagline: false
+          },
+          
+          createOrder: (data, actions) => {
+            return actions.order.create({
+              intent: 'CAPTURE',
+              purchase_units: [{
+                reference_id: `DON-${donationId}`,
+                description: `Clean Heart Donation - ${this.donationData.full_name || 'Anonymous'}`,
+                custom_id: donationId.toString(),
+                amount: {
+                  currency_code: 'USD',
+                  value: usdAmount,
+                  breakdown: {
+                    item_total: {
+                      currency_code: 'USD',
+                      value: usdAmount
+                    }
+                  }
+                },
+                items: [{
+                  name: 'Clean Heart Donation',
+                  description: `Support Clean Heart with your donation`,
+                  quantity: '1',
+                  unit_amount: {
+                    currency_code: 'USD',
+                    value: usdAmount
+                  },
+                  category: 'DONATION'
+                }]
+              }],
+              payer: {
+                email_address: this.donationData.email || undefined,
+                name: {
+                  given_name: this.donationData.full_name?.split(' ')[0] || '',
+                  surname: this.donationData.full_name?.split(' ').slice(1).join(' ') || ''
+                }
+              },
+              application_context: {
+                return_url: `${window.location.origin}/donate`,
+                cancel_url: `${window.location.origin}/donate`,
+                shipping_preference: 'NO_SHIPPING',
+                user_action: 'PAY_NOW',
+                brand_name: 'Clean Heart'
+              }
+            })
+          },
+
+          onApprove: (data, actions) => {
+            return actions.order.capture().then(async (details) => {
+              // Payment successful
+              this.loading = false
+              
+              // Show success message
+              this.successMessage = `✅ Thank you for your generous donation of Ksh ${this.donationData.amount}!`
+              
+              // Refresh stats
+              await this.fetchDonationStats()
+              
+              this.$nuxt.$emit('show-snackbar', {
+                message: `🎉 Thank you for your donation of Ksh ${this.donationData.amount}!`,
+                color: '#E53935'
+              })
+
+              // Reset form
+              this.donationData.amount = 100
+              this.donationData.message = ''
+              this.customAmount = ''
+              this.donationData.full_name = this.authUser?.displayName || ''
+              this.donationData.email = this.authUser?.email || ''
+
+              // Re-render button with reset amount
+              setTimeout(() => {
+                this.initPayPalButton()
+              }, 500)
+            })
+          },
+
+          onCancel: (data) => {
+            this.loading = false
+            this.errorMessage = 'Donation was cancelled. You can try again anytime.'
+          },
+
+          onError: (err) => {
+            console.error('PayPal Error:', err)
+            this.loading = false
+            this.errorMessage = 'PayPal payment failed. Please try again.'
+          }
+
+        }).render(container).catch(err => {
+          console.error('PayPal render error:', err)
+          this.loading = false
+          this.errorMessage = 'Failed to render PayPal button. Please refresh and try again.'
+        })
+
+        this.paypalButtonRendered = true
         this.loading = false
+
+      } catch (error) {
+        console.error('Donation init error:', error)
+        this.loading = false
+        this.errorMessage = error.response?.data?.error || 'Failed to start donation. Please try again.'
       }
     },
 
-    handleDonationSuccess(data) {
-      console.log('Donation successful:', data)
-      this.$nuxt.$emit('show-snackbar', {
-        message: `🎉 Thank you for your donation of Ksh ${data.amount}!`,
-        color: '#E53935'
-      })
-      this.fetchDonationStats()
+    async submitDonation() {
+      // This is now handled by the PayPal button
+      // Keep this for fallback or alternative payment methods
+      this.errorMessage = 'Please use the PayPal button above to complete your donation.'
     }
   },
   head() {
@@ -605,27 +712,7 @@ export default {
   border-radius: 8px !important;
 }
 
-/* Donate Button */
-.donate-btn {
-  border-radius: 10px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.5px !important;
-  box-shadow: 0 4px 20px rgba(229, 57, 53, 0.35) !important;
-}
-
-.donate-btn:hover {
-  box-shadow: 0 6px 28px rgba(229, 57, 53, 0.5) !important;
-}
-
-.secure-text {
-  font-size: 0.7rem;
-  color: #999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
+/* Back Link */
 .back-link {
   color: #888;
   text-decoration: none;
@@ -766,6 +853,11 @@ export default {
   font-size: 0.9rem;
   color: #666;
   line-height: 1.6;
+}
+
+/* PayPal Container */
+#paypal-button-container {
+  min-height: 90px;
 }
 
 /* Responsive */
