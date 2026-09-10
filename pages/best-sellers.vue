@@ -153,29 +153,38 @@ export default {
     }),
     ...mapGetters(['getBestSellers']),
     bestSellers() {
-      // ✅ First try getter
-      const fromGetter = this.getBestSellers
-      if (fromGetter && fromGetter.length > 0) {
-        console.log('Best sellers from getter:', fromGetter.length)
-        return fromGetter
+      // ✅ Handles true, 1, "1", "true" — APIs often return flags as strings
+      const truthy = (v) => v === true || v === 1 || v === '1' || v === 'true' || v === 'TRUE' || v === 'yes'
+      const mentionsBest = (v) => v != null && String(v).toLowerCase().includes('best')
+
+      const isBestSeller = (p) => {
+        if (!p) return false
+        if (truthy(p.is_best_seller) || truthy(p.is_bestseller) || truthy(p.best_seller) || truthy(p.isBestSeller)) return true
+        if (mentionsBest(p.badge) || mentionsBest(p.tag) || mentionsBest(p.label)) return true
+        if (Array.isArray(p.tags) && p.tags.some(t => mentionsBest(t))) return true
+        return false
       }
-      
-      // ✅ Fallback: Manual filter from products
-      console.log('Getter returned empty, falling back to manual filter')
-      const filtered = this.products.filter(p => {
-        return p.is_best_seller === true || 
-               p.is_best_seller === 1 || 
-               p.is_bestseller === true || 
-               p.is_bestseller === 1
-      })
-      
-      // Sort by sold_count
-      return filtered
-        .sort((a, b) => {
-          const aSold = a.sold_count || 0
-          const bSold = b.sold_count || 0
-          return bSold - aSold
-        })
+
+      // Merge products + getter results (deduped by id) so we don't miss anything
+      const seen = new Set()
+      const pool = []
+      for (const p of [...(this.products || []), ...(this.getBestSellers || [])]) {
+        if (p && p.id != null && !seen.has(p.id)) {
+          seen.add(p.id)
+          pool.push(p)
+        }
+      }
+
+      let flagged = pool.filter(isBestSeller)
+
+      // Fallback: nothing flagged → show top sellers by sold_count so the page isn't empty
+      if (flagged.length === 0) {
+        flagged = pool.filter(p => (p.sold_count || p.sales || 0) > 0)
+      }
+
+      return flagged
+        .slice()
+        .sort((a, b) => (b.sold_count || b.sales || 0) - (a.sold_count || a.sales || 0))
         .slice(0, 8)
     },
     firebaseUid() {
@@ -186,8 +195,16 @@ export default {
     await store.dispatch('fetchProducts')
   },
   mounted() {
-    console.log('All products count:', this.products.length)
-    console.log('Best sellers found:', this.bestSellers.length)
+    console.log('[best-sellers] products:', this.products.length, '| showing:', this.bestSellers.length)
+    // 🔍 Debug: inspect the first few products to see what flag fields actually exist
+    this.products.slice(0, 5).forEach(p => {
+      console.log('[best-sellers] product', p.id, p.name, {
+        is_best_seller: p.is_best_seller,
+        is_bestseller: p.is_bestseller,
+        badge: p.badge,
+        sold_count: p.sold_count,
+      })
+    })
   },
   methods: {
     async quickAdd(product) {

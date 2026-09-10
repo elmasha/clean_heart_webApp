@@ -1,208 +1,154 @@
 <template>
   <div>
-    <!-- HERO SECTION - With Product Carousel -->
-    <section style="margin-top: 64px; min-height: 85vh; background: #ffffff; position: relative; overflow: hidden;">
-      <!-- Subtle Background Pattern -->
-      <div style="position: absolute; inset: 0; opacity: 0.03; background-image: radial-gradient(circle at 20% 50%, #E53935 0%, transparent 50%), radial-gradient(circle at 80% 20%, #E53935 0%, transparent 40%); pointer-events: none;" />
-      
-      <v-container fluid class="pa-0">
-        <v-row no-gutters>
-          <!-- Left Sidebar Categories -->
-          <v-col
-            cols="12"
-            md="2"
-            class="d-none d-md-flex flex-column"
-            style="border-right: 1px solid #f0f0f0; padding: 60px 30px; position: relative; z-index: 1;"
-          >
-            <div style="font-size: 0.7rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #999; margin-bottom: 30px;">
-              Shop
-            </div>
-            <nuxt-link
-              v-for="cat in categories"
-              :key="cat"
-              :to="`/shop?category=${cat.toLowerCase()}`"
-              class="mb-4"
-              style="text-decoration: none; transition: all 0.3s ease;"
-            >
-              <span style="font-weight: 500; color: #666; font-size: 0.85rem; letter-spacing: 0.5px; transition: color 0.3s ease;">
-                {{ cat }}
-              </span>
-            </nuxt-link>
+    <!-- HERO SECTION - Full-width background image with right product card -->
+    <section style="margin-top: 4px; min-height: 85vh; background: #1a1a1a; position: relative; overflow: hidden;">
+      <!-- Decorative background (CSS only, no image) -->
+      <div class="hero-decor" style="position: absolute; inset: 0; background: radial-gradient(ellipse at 18% 30%, rgba(229,57,53,0.10) 0%, transparent 55%), #ffffff; overflow: hidden;">
+        <!-- Giant outlined typographic watermark -->
+        <div class="hero-watermark" aria-hidden="true">CLEAN HEART</div>
+        <!-- Diagonal red accent panel on the right (behind product card) -->
+        <div class="hero-accent" aria-hidden="true" />
+      </div>
 
-            <div style="margin-top: auto;">
-              <div style="font-size: 0.7rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #999; margin-bottom: 20px;">
-                Info
-              </div>
-              <nuxt-link
-                v-for="info in infoLinks"
-                :key="info.title"
-                :to="info.to"
-                class="d-block mb-3"
-                style="font-size: 0.75rem; color: #999; text-decoration: none; transition: color 0.3s ease;"
+      <v-container fluid class="pa-0 fill-height">
+        <v-row no-gutters align="center" style="min-height: 85vh; position: relative; z-index: 1;">
+          <!-- Left Content -->
+          <v-col cols="12" md="7" class="pa-8 pa-md-12">
+            <div class="mb-4" style="font-size: 0.7rem; color: rgba(0,0,0,0.55); letter-spacing: 3px; text-transform: uppercase;">
+              STREETWEAR CLOTHING / CLEAN HEART
+            </div>
+
+            <h1 style="font-size: clamp(3.5rem, 8vw, 7rem); font-weight: 900; line-height: 0.9; text-transform: uppercase; letter-spacing: -3px; color: #000; margin-bottom: 20px;">
+              CLEAN<br />
+              <span style="color: #E53935;">HEART</span>
+            </h1>
+
+            <div style="font-size: 1rem; font-weight: 600; color: #000; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 16px;">
+              WEAR YOUR HEART.
+            </div>
+
+            <p style="font-size: 0.9rem; color: rgba(0,0,0,0.6); line-height: 1.8; max-width: 400px; margin-bottom: 40px;">
+              Premium streetwear made to wear your heart.<br />
+              More than clothing — it's a movement.
+            </p>
+
+            <!-- Action Buttons -->
+            <div class="d-flex align-center flex-wrap" style="gap: 16px;">
+              <v-btn
+                color="#E53935"
+                dark
+                height="52"
+                class="px-8"
+                style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
+                @click="scrollToProducts"
               >
-                {{ info.title }}
-              </nuxt-link>
-              
-              <!-- 🔥 Donate Link - Goes to /donate page -->
-              <nuxt-link
+                SHOP COLLECTION
+                <v-icon right size="16">mdi-arrow-right</v-icon>
+              </v-btn>
+              <v-btn
+                outlined
+                color="black"
+                height="52"
+                class="px-6"
+                style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600; border: 2px solid #000;"
                 to="/donate"
-                class="d-block mt-3"
-                style="font-size: 0.75rem; color: #E53935; text-decoration: none; font-weight: 700;"
               >
-                ❤️ Support Us
-              </nuxt-link>
+                <v-icon left size="16" color="#E53935">mdi-heart</v-icon>
+                DONATE
+              </v-btn>
             </div>
           </v-col>
 
-          <!-- Main Hero Content -->
-          <v-col cols="12" md="7" class="pa-0">
-            <div class="d-flex flex-column justify-center" style="min-height: 85vh; padding: 40px 60px; position: relative; z-index: 1;">
-              <div class="mb-6" style="font-size: 0.7rem; color: #999; letter-spacing: 1px; text-transform: uppercase;">
-                Streetwear Clothing / Clean Heart
+          <!-- Right Product Carousel Card -->
+          <v-col cols="12" md="5" class="pa-4 pa-md-8 d-none d-md-block">
+            <div style="background: white; padding: 24px; max-width: 420px; margin-left: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+              <!-- Product Image -->
+              <div style="background: #f8f8f8; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; position: relative; overflow: hidden;">
+                <v-img
+                  :src="featuredProduct?.image_url || featuredProduct?.image || '/placeholder-product.jpg'"
+                  contain
+                  style="width: 100%; height: 100%;"
+                >
+                  <template #placeholder>
+                    <div class="d-flex align-center justify-center fill-height">
+                      <v-icon size="80" color="grey lighten-1">mdi-tshirt-crew-outline</v-icon>
+                    </div>
+                  </template>
+                </v-img>
               </div>
 
-              <h1 style="font-size: clamp(4rem, 10vw, 8rem); font-weight: 900; line-height: 0.9; text-transform: uppercase; letter-spacing: -4px; color: #000; margin-bottom: 30px;">
-                Clean<br />
-                <span style="color: #E53935;">Heart</span>
-              </h1>
-
-              <p style="font-size: 0.9rem; color: #666; line-height: 1.8; max-width: 400px; margin-bottom: 40px;">
-                Premium streetwear merch built for those who wear their heart on their sleeve.
-                Bold designs, quality cotton, made to stand out.
-              </p>
-
-              <!-- Action Buttons -->
-              <div class="d-flex align-center flex-wrap" style="gap: 16px;">
-                <v-btn
-                  color="#E53935"
-                  dark
-                  height="52"
-                  class="px-8"
-                  style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
-                  @click="scrollToProducts"
+              <!-- Thumbnail Strip -->
+              <div class="d-flex mb-4" style="gap: 8px; overflow-x: auto;">
+                <div
+                  v-for="(product, index) in carouselProducts.slice(0, 5)"
+                  :key="'thumb-' + product.id"
+                  style="width: 60px; height: 60px; background: #f0f0f0; cursor: pointer; flex-shrink: 0; border: 2px solid transparent; transition: all 0.3s;"
+                  :style="{ borderColor: currentSlide === index ? '#E53935' : 'transparent' }"
+                  @click="currentSlide = index"
                 >
-                  <v-icon left size="16">mdi-arrow-right</v-icon>
-                  Shop Collection
-                </v-btn>
-                <!-- 🔥 Donate Button - Goes to /donate page -->
-                <v-btn
-                  outlined
-                  color="black"
-                  height="52"
-                  class="px-6"
-                  style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem; font-weight: 600;"
-                  to="/donate"
-                >
-                  <v-icon left size="16">mdi-heart</v-icon>
-                  Donate
-                </v-btn>
-              </div>
-
-              <!-- Product Number -->
-              <div class="mt-auto pt-12 d-flex align-center" style="gap: 40px;">
-                <div>
-                  <div style="font-size: 2rem; font-weight: 900; color: #E53935;">01</div>
-                  <div style="font-size: 0.7rem; color: #999; letter-spacing: 1px;">FEATURED</div>
-                </div>
-                <div style="width: 60px; height: 2px; background: #e0e0e0;" />
-                <div><div style="font-size: 2rem; font-weight: 300; color: #ccc;">02</div></div>
-                <div><div style="font-size: 2rem; font-weight: 300; color: #ccc;">03</div></div>
-                <div><div style="font-size: 2rem; font-weight: 300; color: #ccc;">04</div></div>
-              </div>
-            </div>
-          </v-col>
-
-          <!-- Right Hero Image - PRODUCT CAROUSEL -->
-          <v-col cols="12" md="3" class="pa-0 d-none d-md-block">
-            <div style="height: 85vh; background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%); position: relative; overflow: hidden;">
-              
-              <!-- Carousel Container -->
-              <div class="carousel-container" style="height: 100%; position: relative;">
-                
-                <!-- Slides -->
-                <div 
-                  v-for="(product, index) in carouselProducts" 
-                  :key="product.id"
-                  class="carousel-slide"
-                  :class="{ 'carousel-slide-active': currentSlide === index }"
-                  style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; transition: opacity 0.6s ease, transform 0.6s ease; opacity: 0; transform: scale(0.95);"
-                >
-                  <div class="text-center" style="width: 100%;">
-                    <v-img
-                      :src="product.image_url || product.image || '/placeholder-product.jpg'"
-                      contain
-                      style="width: 100%; height: 300px; transition: transform 0.3s ease;"
-                      class="carousel-image"
-                    >
-                      <template #placeholder>
-                        <div class="d-flex align-center justify-center fill-height">
-                          <v-icon size="80" color="grey lighten-1">mdi-tshirt-crew-outline</v-icon>
-                        </div>
-                      </template>
-                    </v-img>
-                    
-                    <div class="mt-3" style="font-size: 0.7rem; color: #999; letter-spacing: 2px; text-transform: uppercase;">
-                      {{ product.category_name || 'Clean Heart' }}
-                    </div>
-                    
-                    <div class="mt-1" style="font-size: 1rem; font-weight: 700; color: #000;">
-                      {{ product.name }}
-                    </div>
-                    
-                    <div class="mt-1" style="font-size: 1.2rem; font-weight: 800; color: #E53935;">
-                      Ksh {{ parseFloat(product.price).toFixed(2) }}
-                    </div>
-                    
-                    <v-btn
-                      color="black"
-                      dark
-                      small
-                      class="mt-3"
-                      style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; font-weight: 600;"
-                      :to="`/product/${product.id}`"
-                    >
-                      Shop Now
-                    </v-btn>
-                  </div>
-                </div>
-
-                <!-- Slide Indicators -->
-                <div style="position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 10;">
-                  <div
-                    v-for="(product, index) in carouselProducts"
-                    :key="'dot-' + product.id"
-                    class="carousel-dot"
-                    :class="{ 'carousel-dot-active': currentSlide === index }"
-                    style="width: 8px; height: 8px; border-radius: 50%; background: #ddd; cursor: pointer; transition: all 0.3s ease;"
-                    @click="currentSlide = index"
+                  <v-img
+                    :src="product.image_url || product.image || '/placeholder-product.jpg'"
+                    contain
+                    style="width: 100%; height: 100%;"
                   />
                 </div>
               </div>
 
-              <!-- Navigation Arrows -->
-              <div class="d-flex" style="position: absolute; bottom: 0; right: 0; z-index: 10;">
-                <v-btn 
-                  icon 
-                  tile 
-                  large 
-                  style="border-radius: 0; background: #000;" 
-                  dark 
-                  @click="prevSlide"
-                >
+              <!-- Product Info -->
+              <div style="font-size: 0.9rem; font-weight: 600; color: #000; margin-bottom: 4px;">
+                {{ featuredProduct?.name || 'Classic Heavyweight Hoodie' }}
+              </div>
+              <div style="font-size: 1rem; font-weight: 700; color: #E53935; margin-bottom: 16px;">
+                Ksh {{ parseFloat(featuredProduct?.price || 4000).toFixed(2) }}
+              </div>
+
+              <!-- Shop Now Button -->
+              <v-btn
+                block
+                color="black"
+                dark
+                height="44"
+                style="border-radius: 0; text-transform: uppercase; letter-spacing: 2px; font-size: 0.7rem; font-weight: 600;"
+                :to="featuredProduct ? `/product/${featuredProduct.id}` : '/shop'"
+              >
+                SHOP NOW
+              </v-btn>
+
+              <!-- Carousel Navigation -->
+              <div class="d-flex align-center justify-space-between mt-4">
+                <v-btn icon small @click="prevSlide">
                   <v-icon>mdi-chevron-left</v-icon>
                 </v-btn>
-                <v-btn 
-                  icon 
-                  tile 
-                  large 
-                  style="border-radius: 0; background: #E53935;" 
-                  dark 
-                  @click="nextSlide"
-                >
+                <div style="font-size: 0.8rem; color: #666; font-weight: 600;">
+                  {{ String(currentSlide + 1).padStart(2, '0') }} / {{ String(carouselProducts.length).padStart(2, '0') }}
+                </div>
+                <v-btn icon small @click="nextSlide">
                   <v-icon>mdi-chevron-right</v-icon>
                 </v-btn>
               </div>
             </div>
+          </v-col>
+        </v-row>
+      </v-container>
+    </section>
+
+    <!-- CATEGORY STRIP -->
+    <section style="background: white; padding: 40px 0; border-bottom: 1px solid #f0f0f0;">
+      <v-container>
+        <v-row align="center" justify="space-between" class="text-center">
+          <v-col
+            v-for="cat in categories"
+            :key="cat"
+            cols="6"
+            md="3"
+            class="d-flex align-center justify-center"
+            style="cursor: pointer; gap: 12px;"
+            @click="$router.push(`/shop?category=${cat.toLowerCase()}`)"
+          >
+            <v-icon size="32" color="#000">mdi-tshirt-crew-outline</v-icon>
+            <span style="font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #000;">
+              {{ cat }}
+            </span>
           </v-col>
         </v-row>
       </v-container>
@@ -213,30 +159,62 @@
       <v-container fluid class="pa-0">
         <v-row no-gutters>
           <v-col cols="12" md="6">
-            <div class="d-flex flex-column justify-center align-start pa-8 pa-md-12" style="min-height: 400px; background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800'); background-size: cover; background-position: center;">
-              <h2 style="font-size: clamp(1.8rem, 4vw, 2.5rem); font-weight: 700; color: #fff; margin-bottom: 16px;">New Arrivals</h2>
-              <p style="font-size: 0.85rem; color: rgba(255,255,255,0.7); max-width: 350px; line-height: 1.7; margin-bottom: 30px;">
-                Fresh drops just landed. Limited quantities on our latest hoodies and sweatshirts.
-              </p>
-              <div class="d-flex" style="gap: 12px;">
-                <v-btn outlined color="white" height="42" class="px-6" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem; font-weight: 600;" to="/new">
-                  Shop New
-                </v-btn>
+            <nuxt-link :to="newArrivalProduct ? `/product/${newArrivalProduct.id}` : '/new'" style="text-decoration: none; display: block;">
+              <div class="d-flex flex-wrap" style="min-height: 400px; background: #0a0a0a;">
+                <div class="d-flex flex-column justify-center align-start pa-8 pa-md-10" style="flex: 1 1 55%; min-width: 260px;">
+                  <div class="mb-3" style="font-size: 0.65rem; letter-spacing: 3px; color: #E53935; font-weight: 700; text-transform: uppercase;">Just Dropped</div>
+                  <h2 style="font-size: clamp(1.8rem, 4vw, 2.5rem); font-weight: 700; color: #fff; margin-bottom: 10px;">New Arrivals</h2>
+                  <template v-if="newArrivalProduct">
+                    <div style="font-size: 0.9rem; font-weight: 600; color: #fff;">{{ newArrivalProduct.name }}</div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: #E53935; margin-bottom: 14px;">Ksh {{ parseFloat(newArrivalProduct.price).toFixed(2) }}</div>
+                  </template>
+                  <p v-else style="font-size: 0.85rem; color: rgba(255,255,255,0.7); max-width: 350px; line-height: 1.7; margin-bottom: 14px;">
+                    Fresh drops just landed. Limited quantities on our latest hoodies and sweatshirts.
+                  </p>
+                  <v-btn outlined color="white" height="42" class="px-6 mt-2" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem; font-weight: 600;">
+                    Shop New
+                  </v-btn>
+                </div>
+                <div class="d-flex align-center justify-center pa-6" style="flex: 1 1 45%; min-width: 240px; min-height: 260px; background: #f5f5f5;"
+                     :style="newArrivalProduct ? {} : { background: 'url(\'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800\') center/cover' }">
+                  <v-img
+                    v-if="newArrivalProduct"
+                    :src="newArrivalProduct.image_url || newArrivalProduct.image || '/placeholder-product.jpg'"
+                    contain
+                    style="max-width: 280px; max-height: 320px; width: 100%;"
+                  />
+                </div>
               </div>
-            </div>
+            </nuxt-link>
           </v-col>
           <v-col cols="12" md="6">
-            <div class="d-flex flex-column justify-center align-start pa-8 pa-md-12" style="min-height: 400px; background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=800'); background-size: cover; background-position: center;">
-              <h2 style="font-size: clamp(1.8rem, 4vw, 2.5rem); font-weight: 700; color: #fff; margin-bottom: 16px;">Best Sellers</h2>
-              <p style="font-size: 0.85rem; color: rgba(255,255,255,0.7); max-width: 350px; line-height: 1.7; margin-bottom: 30px;">
-                Our most loved pieces. The hoodies and tees that keep selling out.
-              </p>
-              <div class="d-flex" style="gap: 12px;">
-                <v-btn outlined color="white" height="42" class="px-6" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem; font-weight: 600;" to="/best-sellers">
-                  Shop Now
-                </v-btn>
+            <nuxt-link :to="bestSellerProduct ? `/product/${bestSellerProduct.id}` : '/best-sellers'" style="text-decoration: none; display: block;">
+              <div class="d-flex flex-wrap" style="min-height: 400px; background: #E53935;">
+                <div class="d-flex flex-column justify-center align-start pa-8 pa-md-10" style="flex: 1 1 55%; min-width: 260px;">
+                  <div class="mb-3" style="font-size: 0.65rem; letter-spacing: 3px; color: rgba(255,255,255,0.85); font-weight: 700; text-transform: uppercase;">Most Loved</div>
+                  <h2 style="font-size: clamp(1.8rem, 4vw, 2.5rem); font-weight: 700; color: #fff; margin-bottom: 10px;">Best Sellers</h2>
+                  <template v-if="bestSellerProduct">
+                    <div style="font-size: 0.9rem; font-weight: 600; color: #fff;">{{ bestSellerProduct.name }}</div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: #0a0a0a; margin-bottom: 14px;">Ksh {{ parseFloat(bestSellerProduct.price).toFixed(2) }}</div>
+                  </template>
+                  <p v-else style="font-size: 0.85rem; color: rgba(255,255,255,0.85); max-width: 350px; line-height: 1.7; margin-bottom: 14px;">
+                    Our most loved pieces. The hoodies and tees that keep selling out.
+                  </p>
+                  <v-btn outlined color="white" height="42" class="px-6 mt-2" style="border-radius: 0; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem; font-weight: 600;">
+                    Shop Now
+                  </v-btn>
+                </div>
+                <div class="d-flex align-center justify-center pa-6" style="flex: 1 1 45%; min-width: 240px; min-height: 260px; background: #f5f5f5;"
+                     :style="bestSellerProduct ? {} : { background: 'url(\'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=800\') center/cover' }">
+                  <v-img
+                    v-if="bestSellerProduct"
+                    :src="bestSellerProduct.image_url || bestSellerProduct.image || '/placeholder-product.jpg'"
+                    contain
+                    style="max-width: 280px; max-height: 320px; width: 100%;"
+                  />
+                </div>
               </div>
-            </div>
+            </nuxt-link>
           </v-col>
         </v-row>
       </v-container>
@@ -618,6 +596,17 @@ export default {
       if (this.carouselProducts.length === 0) return null
       return this.carouselProducts[this.currentSlide] || this.carouselProducts[0]
     },
+
+    // 🔥 Banner products
+    newArrivalProduct() {
+      const fresh = this.products.find(p => p.is_new === true || p.is_new === 1)
+      return fresh || this.products[0] || null
+    },
+
+    bestSellerProduct() {
+      const best = this.products.find(p => p.is_best_seller === true || p.is_best_seller === 1)
+      return best || this.products[1] || this.products[0] || null
+    },
     
     filteredProducts() {
       if (this.activeFilter === 'All') {
@@ -838,6 +827,45 @@ export default {
 </script>
 
 <style scoped>
+/* Hero decorative background (no image) */
+.hero-watermark {
+  position: absolute;
+  bottom: -4%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(5rem, 17vw, 15rem);
+  font-weight: 900;
+  line-height: 0.8;
+  letter-spacing: -6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+  user-select: none;
+}
+
+.hero-accent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 42%;
+  height: 100%;
+  background: linear-gradient(160deg, #E53935 0%, #b71c1c 100%);
+  clip-path: polygon(22% 0, 100% 0, 100% 100%, 0% 100%);
+  opacity: 0.95;
+}
+
+@media (max-width: 959px) {
+  .hero-accent {
+    display: none;
+  }
+  .hero-watermark {
+    font-size: clamp(4rem, 24vw, 9rem);
+    letter-spacing: -3px;
+  }
+}
+
 .product-card:hover .product-overlay {
   opacity: 1 !important;
 }
